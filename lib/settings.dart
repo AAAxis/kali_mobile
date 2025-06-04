@@ -11,7 +11,6 @@ import 'package:purchases_flutter/purchases_flutter.dart';
 import 'wizard/wizard_flow.dart';
 import 'user_info.dart';
 import 'services/paywall_service.dart';
-import 'services/revenue_cat_config.dart';
 import 'wizard/promocode.dart';
 import 'main.dart';
 
@@ -220,8 +219,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     
     await _auth.signOut();
     
-    // Clear dashboard meals when logging out
-    dashboardKey.currentState?.handleAuthStateChange();
+    // Dashboard will handle authentication state changes automatically
     
     Navigator.pushReplacement(
       context,
@@ -259,61 +257,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       body: ListView(
         children: [
-          // Get Discount tile
-          ListTile(
-            leading: Container(
-              padding: EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                Icons.local_offer,
-                color: Colors.green,
-                size: 20,
-              ),
-            ),
-            title: Text(
-              'settings.get_discount'.tr(),
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Colors.green[700],
-              ),
-            ),
-            subtitle: Text('settings.special_discount_offer'.tr()),
-            trailing: Icon(Icons.arrow_forward_ios, color: Colors.green),
-            onTap: () async {
-              try {
-                print('🎯 Opening discount paywall with offering ID: $discountOfferingId');
-                final purchased = await PaywallService.showPaywall(
-                  context, 
-                  offeringId: discountOfferingId,
-                  forceCloseOnRestore: true,
-                );
-                if (purchased) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Welcome to Premium! 🎉'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                  // Refresh the settings screen to update subscription status
-                  setState(() {
-                    loadUserInfo();
-                  });
-                }
-              } catch (e) {
-                print('Error showing discount paywall: $e');
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Error opening discount offer'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              }
-            },
-          ),
-
           // My Profile tile
           ListTile(
             leading: const Icon(Icons.person),
@@ -381,8 +324,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               await launch(url);
             },
           ),
-
-
 
           ListTile(
             leading: const Icon(Icons.logout),

@@ -7,11 +7,9 @@ import 'package:easy_localization/easy_localization.dart';
 import 'dart:io' show Platform;
 import 'dart:convert' show json;
 import 'login.dart';
-import 'email_verification.dart';
 import '../dashboard/dashboard.dart';
-
 import '../main.dart';
-
+import '../services/paywall_service.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -133,14 +131,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
           if (mounted) {
             Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (_) => MainTabScreen()),
+              MaterialPageRoute(builder: (_) => DashboardScreen(dashboardKey: globalDashboardKey)),
               (Route<dynamic> route) => false,
             );
             
-            // Trigger dashboard refresh after successful signup to clear local storage meals
-            Future.delayed(const Duration(milliseconds: 500), () {
-              dashboardKey.currentState?.handleAuthStateChange();
-            });
+            // Trigger refresh on the dashboard if it exists
+            globalDashboardKey.currentState?.handleAuthStateChange();
           }
         } else {
           throw Exception('Failed to send verification code');
@@ -149,14 +145,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
         print('Error sending verification code: $e');
         if (mounted) {
           Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => MainTabScreen()),
+            MaterialPageRoute(builder: (_) => DashboardScreen(dashboardKey: globalDashboardKey)),
             (Route<dynamic> route) => false,
           );
           
-          // Trigger dashboard refresh after successful signup to clear local storage meals
-          Future.delayed(const Duration(milliseconds: 500), () {
-            dashboardKey.currentState?.handleAuthStateChange();
-          });
+          // Trigger refresh on the dashboard if it exists
+          globalDashboardKey.currentState?.handleAuthStateChange();
         }
       }
     } catch (e) {

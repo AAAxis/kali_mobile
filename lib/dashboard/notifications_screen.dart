@@ -145,24 +145,68 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     final notifications = getNotifications();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     // Pick one notification per day
     final now = DateTime.now();
     final index = now.difference(DateTime(now.year)).inDays % notifications.length;
     final notification = notifications[index];
 
     return Scaffold(
-      appBar: AppBar(title: Text('notifications.notifications'.tr())),
+      backgroundColor: isDark ? Colors.black : Colors.white,
+      appBar: AppBar(
+        title: Text('notifications.notifications'.tr()),
+        backgroundColor: isDark ? Colors.black : Colors.white,
+        foregroundColor: isDark ? Colors.white : Colors.black,
+        elevation: 0,
+        iconTheme: IconThemeData(
+          color: isDark ? Colors.white : Colors.black,
+        ),
+      ),
       body: Padding(
         padding: const EdgeInsets.only(top: 16),
-        child: ListTile(
-          leading: Icon(Icons.notifications, color: Colors.black),
-          title: Text(
-            notification['title'] ?? '',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          subtitle: Text(notification['subtitle'] ?? ''),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-        ),
+        child: notifications.isEmpty
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.notifications,
+                      size: 64,
+                      color: isDark ? Colors.grey[600] : Colors.grey[400],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'notifications.none_yet'.tr(),
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: isDark ? Colors.grey[400] : Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            : ListTile(
+                leading: Icon(
+                  Icons.notifications,
+                  size: 48,
+                  color: Colors.grey[400],
+                ),
+                title: Text(
+                  notification['title'] ?? '',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black,
+                  ),
+                ),
+                subtitle: Text(
+                  notification['subtitle'] ?? '',
+                  style: TextStyle(
+                    color: isDark ? Colors.grey[400] : Colors.grey[600],
+                  ),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              ),
       ),
     );
   }

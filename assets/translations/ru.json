@@ -84,7 +84,8 @@
     "calories_over": "Калорий сверх нормы",
     "left": "ост.",
     "over": "сверх",
-    "ok": "ОК"
+    "ok": "ОК",
+    "retry": "Повторить"
   },
   "notifications": {
     "notifications": "Уведомления",
@@ -278,6 +279,7 @@
     "edit_source": "Редактировать источник",
     "enter_source": "Введите URL источника",
     "analyzing": "Анализ...",
+    "analysis_failed": "Анализ не удался",
     "healthiness": {
       "healthy": "Здоровый",
       "medium": "Средний",

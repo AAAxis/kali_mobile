@@ -7,11 +7,11 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:io' show Platform;
 import '../dashboard/dashboard.dart';
+import '../main.dart';
 import 'signup.dart';
 import 'forgot_password.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'dart:convert' show json;
-import '../main.dart';
 import '../services/paywall_service.dart';
 
 
@@ -137,15 +137,14 @@ class _LoginScreenState extends State<LoginScreen> {
       await PaywallService.loginUser(user.uid);
 
       if (mounted) {
+        // Navigate back to existing dashboard or create new one with global key
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => MainTabScreen()),
+          MaterialPageRoute(builder: (_) => DashboardScreen(dashboardKey: globalDashboardKey)),
           (Route<dynamic> route) => false,
         );
         
-        // Trigger dashboard refresh after successful login to clear local storage meals
-        Future.delayed(const Duration(milliseconds: 500), () {
-          dashboardKey.currentState?.handleAuthStateChange();
-        });
+        // Trigger refresh on the dashboard if it exists
+        globalDashboardKey.currentState?.handleAuthStateChange();
       }
     } catch (e) {
       print('Error during login success handling: $e');
@@ -336,14 +335,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
         if (mounted) {
           Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => MainTabScreen()),
+            MaterialPageRoute(builder: (_) => DashboardScreen(dashboardKey: globalDashboardKey)),
             (Route<dynamic> route) => false,
           );
           
-          // Trigger dashboard refresh after successful login to clear local storage meals
-          Future.delayed(const Duration(milliseconds: 500), () {
-            dashboardKey.currentState?.handleAuthStateChange();
-          });
+          // Trigger refresh on the dashboard if it exists
+          globalDashboardKey.currentState?.handleAuthStateChange();
         }
       }
     } catch (e) {
@@ -370,7 +367,7 @@ class _LoginScreenState extends State<LoginScreen> {
             icon: const Icon(Icons.close),
             onPressed: () {
               Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (context) => MainTabScreen()),
+                MaterialPageRoute(builder: (context) => DashboardScreen(dashboardKey: globalDashboardKey)),
                 (route) => false,
               );
             },

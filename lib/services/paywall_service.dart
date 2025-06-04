@@ -3,12 +3,61 @@ import 'package:flutter/services.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:purchases_ui_flutter/purchases_ui_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
-import 'revenue_cat_config.dart';
+
+// RevenueCat Configuration
+class RevenueCatConfig {
+  //TO DO: add the entitlement ID from the RevenueCat dashboard that is activated upon successful in-app purchase for the duration of the purchase.
+  static String get entitlementID => dotenv.env['ENTITLEMENT_ID'] ?? 'Premium';
+
+  // Your configured offering ID from RevenueCat dashboard
+  static String get defaultOfferingId => dotenv.env['DEFAULT_OFFERING_ID'] ?? 'Sale';
+  static String get discountOfferingId => dotenv.env['DISCOUNT_OFFERING_ID'] ?? 'Offer';
+
+  //TO DO: add your subscription terms and conditions
+  static const footerText =
+      """Don't forget to add your subscription terms and conditions. 
+
+Read more about this here: https://www.revenuecat.com/blog/schedule-2-section-3-8-b""";
+
+  //TO DO: add the Apple API key for your app from the RevenueCat dashboard: https://app.revenuecat.com
+  static String get appleApiKey => dotenv.env['REVENUECAT_APPLE_API_KEY'] ?? '';
+
+  //TO DO: add the Google API key for your app from the RevenueCat dashboard: https://app.revenuecat.com
+  static String get googleApiKey => dotenv.env['REVENUECAT_GOOGLE_API_KEY'] ?? '';
+
+  //TO DO: add the Amazon API key for your app from the RevenueCat dashboard: https://app.revenuecat.com
+  static String get amazonApiKey => dotenv.env['REVENUECAT_AMAZON_API_KEY'] ?? '';
+}
+
+// App Data Singleton for managing subscription state
+class AppData {
+  static final AppData _appData = AppData._internal();
+
+  bool entitlementIsActive = false;
+  String appUserID = '';
+
+  factory AppData() {
+    return _appData;
+  }
+  AppData._internal();
+}
+
+final appData = AppData();
 
 class PaywallService {
+  // Convenience getters for configuration
+  static String get entitlementID => RevenueCatConfig.entitlementID;
+  static String get defaultOfferingId => RevenueCatConfig.defaultOfferingId;
+  static String get discountOfferingId => RevenueCatConfig.discountOfferingId;
+  static String get appleApiKey => RevenueCatConfig.appleApiKey;
+  static String get googleApiKey => RevenueCatConfig.googleApiKey;
+  static String get amazonApiKey => RevenueCatConfig.amazonApiKey;
+  static String get footerText => RevenueCatConfig.footerText;
+
   // Show RevenueCat remote paywall
   // Note: There's a known issue where the paywall doesn't automatically close on successful restore
   // on iOS (see: https://github.com/RevenueCat/purchases-flutter/issues/1161)

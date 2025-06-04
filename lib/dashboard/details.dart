@@ -6,10 +6,12 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'ingridients_edit.dart';
 import 'nutrition_edit_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../meal_analysis.dart';
+import '../services/image_cache_service.dart';
 
 class AnalysisDetailsScreen extends StatefulWidget {
   final String analysisId;
@@ -203,8 +205,43 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
 
       // Add ingredients to notes if they exist and aren't already in notes
       if (_analysisData != null) {
-        final ingredients =
-            _analysisData!['ingredients'] as List<dynamic>? ?? [];
+        // Handle ingredients more safely based on the data structure
+        List<String> ingredients = [];
+        
+        if (_analysisData!['ingredients'] != null) {
+          final ingredientsData = _analysisData!['ingredients'];
+          
+          if (ingredientsData is List) {
+            // If ingredients is a list, convert to strings
+            ingredients = ingredientsData.map((e) => e.toString()).toList();
+          } else if (ingredientsData is Map) {
+            // If ingredients is a map (multilingual), get current language or default
+            final locale = 'en'; // Default to English, or get from context if available
+            final Map<String, dynamic> ingMap = Map<String, dynamic>.from(ingredientsData);
+            
+            if (ingMap[locale] is List) {
+              ingredients = List<String>.from(ingMap[locale]);
+            } else if (ingMap['en'] is List) {
+              ingredients = List<String>.from(ingMap['en']);
+            } else {
+              // If no proper list found, try to extract values
+              final allValues = <String>[];
+              ingMap.forEach((key, value) {
+                if (value is List) {
+                  allValues.addAll(value.map((e) => e.toString()));
+                } else if (value is String) {
+                  allValues.add(value);
+                }
+              });
+              ingredients = allValues;
+            }
+          } else if (ingredientsData is String) {
+            // If it's a single string, split by common delimiters
+            ingredients = ingredientsData.split(RegExp(r'[,|;]')).map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+          }
+        }
+        
+        // Add ingredients to notes
         for (var ingredient in ingredients) {
           final ingredientNote = 'Ingredient: $ingredient';
           if (!loadedNotes.contains(ingredientNote)) {
@@ -221,6 +258,10 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
       await _saveNotes();
     } catch (e) {
       print('Error loading notes: $e');
+      // Set empty notes on error to prevent crashes
+      setState(() {
+        _notes = [];
+      });
     }
   }
 
@@ -283,13 +324,13 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
 
       // Try exact match first
       if (translationMap.containsKey(lowercaseValue)) {
-        return translationMap[lowercaseValue]!.tr();
+        return _safeTranslate(translationMap[lowercaseValue]!, value);
       }
 
       // If no exact match, try partial matches
       for (var entry in translationMap.entries) {
         if (lowercaseValue.contains(entry.key)) {
-          return entry.value.tr();
+          return _safeTranslate(entry.value, value);
         }
       }
     }
@@ -312,15 +353,15 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
       context: context,
       builder:
           (context) => AlertDialog(
-            title: Text('details.edit_name'.tr()),
+            title: Text(_safeTranslate('details.edit_name', 'Edit Name')),
             content: TextField(
               controller: nameController,
-              decoration: InputDecoration(labelText: 'details.meal_name'.tr()),
+              decoration: InputDecoration(labelText: _safeTranslate('details.meal_name', 'Meal Name')),
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: Text('dashboard.cancel'.tr()),
+                child: Text(_safeTranslate('dashboard.cancel', 'Cancel')),
               ),
               TextButton(
                 onPressed: () async {
@@ -341,7 +382,7 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
                     if (mounted) Navigator.pop(context);
                   }
                 },
-                child: Text('dashboard.save'.tr()),
+                child: Text(_safeTranslate('dashboard.save', 'Save')),
               ),
             ],
           ),
@@ -524,34 +565,20 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
     }
   }
 
-  Widget _buildMacroInfo(String label, String value, String unit, Color color) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-        ),
-        Text('$label ($unit)', style: TextStyle(fontSize: 14, color: color)),
-      ],
-    );
+  // Helper method to safely get translated text with fallback
+  String _safeTranslate(String key, [String? fallback]) {
+    // For now, just return the fallback or generate from key to avoid localization errors
+    if (fallback != null && fallback.isNotEmpty) {
+      return fallback;
+    }
+    
+    // Generate readable text from the key
+    return key.split('.').last.replaceAll('_', ' ').toLowerCase().split(' ').map((word) => 
+      word.isEmpty ? '' : word[0].toUpperCase() + word.substring(1)).join(' ');
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final scaffoldColor = isDark ? Color(0xFF121212) : Color(0xFFF5F5F5);
-    final cardColor = isDark ? Color(0xFF1E1E1E) : Colors.white;
-    final textColor = isDark ? Colors.white : Colors.black;
-    final iconColor = isDark ? Colors.white70 : Colors.black87;
-    final shadowColor =
-        isDark
-            ? Colors.white.withOpacity(0.05)
-            : Colors.black.withOpacity(0.05);
-
     // Debug print for analysis data
     print('Analysis data in UI: ${_analysisData?.keys}');
 
@@ -573,12 +600,10 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
 
     if (_isLoading) {
       return Scaffold(
-        backgroundColor: scaffoldColor,
+        backgroundColor: Colors.black,
         body: Center(
           child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(
-              isDark ? Colors.white : Colors.black,
-            ),
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
           ),
         ),
       );
@@ -586,498 +611,405 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
 
     if (_error != null) {
       return Scaffold(
-        backgroundColor: scaffoldColor,
+        backgroundColor: Colors.black,
         body: Center(
           child: Text(
             _error!,
-            style: TextStyle(color: isDark ? Colors.red[300] : Colors.red[700]),
+            style: TextStyle(color: Colors.red[300]),
           ),
         ),
       );
     }
 
     return Scaffold(
-      backgroundColor: scaffoldColor,
+      backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Image with Back Button
-          Column(
-            children: [
-              Container(
-                height: MediaQuery.of(context).size.height * 0.33,
-                decoration: BoxDecoration(
-                  color: isDark ? Colors.grey[800] : Colors.grey[200],
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(20),
-                  ),
-                ),
-                child:
-                    _analysisData?['imageUrl'] != null
-                        ? ClipRRect(
-                          borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(20),
-                          ),
-                          child: Image.network(
-                            _analysisData!['imageUrl'],
-                            fit: BoxFit.cover,
-                            width: double.infinity,
-                          ),
-                        )
-                        : Center(
-                          child: Icon(
-                            Icons.restaurant,
-                            size: 50,
-                            color: isDark ? Colors.grey[600] : Colors.grey[400],
+          // Main image - covers entire screen including status bar
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              height: MediaQuery.of(context).size.height * 0.4,
+              decoration: BoxDecoration(
+                color: Colors.grey[800],
+              ),
+              child: _analysisData?['imageUrl'] != null
+                  ? ImageCacheService.getCachedImage(
+                      _analysisData!['imageUrl'],
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      placeholder: Container(
+                        color: Colors.grey[800],
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         ),
-              ),
-              const Spacer(),
-            ],
-          ),
-
-          // Back Button
-          Positioned(
-            top: 40,
-            left: 16,
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.3),
-                shape: BoxShape.circle,
-              ),
-              child: IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                onPressed: () => Navigator.pop(context),
-              ),
+                      ),
+                      errorWidget: Center(
+                        child: Icon(
+                          Icons.restaurant,
+                          size: 50,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    )
+                  : Center(
+                      child: Icon(
+                        Icons.restaurant,
+                        size: 50,
+                        color: Colors.grey[600],
+                      ),
+                    ),
             ),
           ),
 
-          // Main Content
-          Positioned(
-            top: MediaQuery.of(context).size.height * 0.28,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Container(
-              decoration: BoxDecoration(
-                color: cardColor,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(20),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: shadowColor,
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
+          // SafeArea for buttons and content
+          SafeArea(
+            child: Stack(
+              children: [
+                // Back Button
+                Positioned(
+                  top: 16,
+                  left: 16,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.3),
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.arrow_back, color: Colors.white),
+                      onPressed: () => Navigator.pop(context),
+                    ),
                   ),
-                ],
-              ),
-              child: // Keep existing child content...
-                  SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
+                ),
+
+                // Edit Button
+                Positioned(
+                  top: 16,
+                  right: 16,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.3),
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.edit, color: Colors.white),
+                      onPressed: _showEditNameDialog,
+                    ),
+                  ),
+                ),
+
+                // Main Content positioned relative to SafeArea
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  top: MediaQuery.of(context).size.height * 0.35 - MediaQuery.of(context).padding.top,
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Header with Title
-                      Row(
-                        children: [
-                          Expanded(
-                            child: GestureDetector(
-                              onTap:
-                                  _isLoading
-                                      ? null
-                                      : () => _showEditNameDialog(),
-                              child: Text(
-                                mealName,
-                                style: TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: textColor,
-                                ),
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            icon: Icon(Icons.edit, color: iconColor),
-                            tooltip: 'Edit Name',
-                            onPressed: _isLoading ? null : _showEditNameDialog,
-                          ),
-                        ],
-                      ),
-
-                      // Healthiness Block
-                      if ((_analysisData?['healthiness'] ?? '').isNotEmpty) ...[
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: _getHealthinessBackgroundColor(isDark),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(
-                                    _getHealthinessIcon(),
-                                    color: _getHealthinessIconColor(),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    _translateValue(
-                                      'healthiness',
-                                      _analysisData?['healthiness'] ??
-                                          'Unknown',
-                                    ),
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: textColor,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              // ...existing healthiness content...
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-
-                      // Nutrition Benefits Block
-                      if ((_analysisData?['benefits'] as List?)?.isNotEmpty ==
-                          true) ...[
-                        Container(
-                          width: double.infinity,
-                          margin: const EdgeInsets.only(bottom: 16),
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: cardColor,
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: shadowColor,
-                                blurRadius: 10,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'details.nutrition_benefits'.tr(),
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: textColor,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              ...List<String>.from(
-                                _analysisData?['benefits'] ?? [],
-                              ).map(
-                                (item) => Padding(
-                                  padding: const EdgeInsets.only(
-                                    left: 8,
-                                    top: 4,
-                                    bottom: 4,
-                                    right: 8,
-                                  ),
-                                  child: Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        '• ',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          color: textColor,
-                                        ),
-                                      ),
-                                      Expanded(
-                                        child: Text(
-                                          _translateValue('benefits', item),
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            color: textColor,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-
-                      // Calories and Macros Card
+                      // White content section
                       Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
+                        padding: EdgeInsets.all(20.w),
                         decoration: BoxDecoration(
-                          color: cardColor,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: shadowColor,
-                              blurRadius: 10,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
+                          color: Colors.white,
+                          borderRadius: BorderRadius.only(
+                            topLeft: Radius.circular(30.r),
+                            topRight: Radius.circular(30.r),
+                          ),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            // Meal Name
+                            GestureDetector(
+                              onTap: _showEditNameDialog,
+                              child: Text(
+                                mealName,
+                                style: TextStyle(
+                                  fontSize: 32.sp,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.black,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+
+                            // Calories and Benefits Row
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Row(
                                   children: [
-                                                                      Icon(
-                                    Icons.local_fire_department,
-                                    color: Colors.black,
-                                  ),
-                                    const SizedBox(width: 8),
+                                    Icon(Icons.local_fire_department, color: Colors.orange, size: 24),
+                                    const SizedBox(width: 6),
                                     Text(
-                                      '${(_analysisData?['calories'] ?? 0.0).toStringAsFixed(1)} kcal',
+                                      '${(_analysisData?['calories'] ?? 0.0).toStringAsFixed(0)} calories',
                                       style: TextStyle(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold,
-                                        color: textColor,
+                                        fontSize: 24.sp,
+                                        color: Colors.black,
+                                        fontWeight: FontWeight.w700,
                                       ),
                                     ),
                                   ],
                                 ),
-                                IconButton(
-                                  icon: Icon(Icons.add, color: iconColor),
-                                  tooltip: 'Add Nutrition',
-                                  onPressed: _isLoading ? null : _editNutrition,
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceAround,
-                              children: [
-                                _buildMacroInfo(
-                                  'details.protein'.tr(),
-                                  (_analysisData?['macros']?['proteins'] ?? 0.0)
-                                      .toStringAsFixed(1),
-                                  'g',
-                                  isDark
-                                      ? Colors.grey[400]!
-                                      : Colors.grey[600]!,
-                                ),
-                                _buildMacroInfo(
-                                  'details.carbs'.tr(),
-                                  (_analysisData?['macros']?['carbs'] ?? 0.0)
-                                      .toStringAsFixed(1),
-                                  'g',
-                                  isDark
-                                      ? Colors.grey[400]!
-                                      : Colors.grey[600]!,
-                                ),
-                                _buildMacroInfo(
-                                  'details.fats'.tr(),
-                                  (_analysisData?['macros']?['fats'] ?? 0.0)
-                                      .toStringAsFixed(1),
-                                  'g',
-                                  isDark
-                                      ? Colors.grey[400]!
-                                      : Colors.grey[600]!,
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Ingredients Block
-                      if (ingredients.isNotEmpty) ...[
-                        Container(
-                          width: double.infinity,
-                          margin: const EdgeInsets.only(bottom: 16),
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: cardColor,
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: shadowColor,
-                                blurRadius: 10,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Icon(
-                                        Icons.restaurant_menu,
-                                        color: Colors.black,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        'details.ingredients'.tr(),
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                          color: textColor,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  IconButton(
-                                    icon: Icon(Icons.add, color: iconColor),
-                                    tooltip: 'Add Ingredients',
-                                    onPressed: _isLoading ? null : _editIngredients,
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              if (ingredients.isEmpty)
-                                Center(
-                                  child: Column(
-                                    children: [
-                                      const SizedBox(height: 20),
-                                      Icon(
-                                        Icons.restaurant_menu,
-                                        size: 40,
-                                        color:
-                                            isDark
-                                                ? Colors.grey[600]
-                                                : Colors.grey[400],
-                                      ),
-                                      const SizedBox(height: 20),
-                                    ],
-                                  ),
-                                )
-                              else
-                                ...ingredients.map(
-                                  (ingredient) => Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 4,
-                                    ),
-                                    child: Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                                if ((_analysisData?['benefits'] as List?)?.isNotEmpty == true)
+                                  Text.rich(
+                                    TextSpan(
                                       children: [
-                                        Text(
-                                          '• ',
+                                        TextSpan(
+                                          text: 'Rich in\n',
                                           style: TextStyle(
-                                            fontSize: 16,
-                                            color: textColor,
+                                            fontSize: 17.sp,
+                                            color: Colors.grey[700],
+                                            fontWeight: FontWeight.w500,
                                           ),
                                         ),
-                                        Expanded(
-                                          child: Text(
-                                            ingredient,
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              color: textColor,
-                                            ),
+                                        TextSpan(
+                                          text: _translateValue('benefits', 
+                                            List<String>.from(_analysisData?['benefits'] ?? []).first),
+                                          style: TextStyle(
+                                            fontSize: 24.sp,
+                                            color: Colors.black,
+                                            fontWeight: FontWeight.w700,
                                           ),
                                         ),
                                       ],
                                     ),
+                                    textAlign: TextAlign.right,
                                   ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ],
+                              ],
+                            ),
+                            const SizedBox(height: 16),
 
-                      // Source Link
-                      if (_analysisData?['source'] != null) ...[
-                        Container(
-                          width: double.infinity,
-                          margin: const EdgeInsets.only(bottom: 16),
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: cardColor,
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: shadowColor,
-                                blurRadius: 10,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
+                            // Macros Row
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceAround,
+                              children: [
+                                _buildNutrientItem(
+                                  _safeTranslate('details.protein', 'Protein'),
+                                  '${(_analysisData?['macros']?['proteins'] ?? 0.0).toStringAsFixed(0)}g',
+                                  'assets/Protein.png',
+                                ),
+                                _buildNutrientItem(
+                                  _safeTranslate('details.carbs', 'Carbs'),
+                                  '${(_analysisData?['macros']?['carbs'] ?? 0.0).toStringAsFixed(0)}g',
+                                  'assets/Carb.png',
+                                ),
+                                _buildNutrientItem(
+                                  _safeTranslate('details.fats', 'Fats'),
+                                  '${(_analysisData?['macros']?['fats'] ?? 0.0).toStringAsFixed(0)}g',
+                                  'assets/Fat.png',
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Healthiness Row
+                            if ((_analysisData?['healthiness'] ?? '').isNotEmpty)
                               Row(
                                 children: [
                                   Icon(
-                                    Icons.link,
-                                    color: Colors.black,
+                                    _getHealthinessIcon(),
+                                    color: _getHealthinessIconColor(),
+                                    size: 18,
                                   ),
-                                  const SizedBox(width: 8),
+                                  const SizedBox(width: 6),
                                   Text(
-                                    'details.source'.tr(),
+                                    _translateValue('healthiness', _analysisData?['healthiness'] ?? 'Unknown'),
                                     style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: textColor,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 15.sp,
+                                      color: Colors.black,
                                     ),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 8),
-                              // Check if source is a URL or just a text
-                              GestureDetector(
-                                onTap: () async {
-                                  final source = _analysisData?['source'];
-                                  if (source != null && source.toString().startsWith('http')) {
-                                    final uri = Uri.parse(source.toString());
-                                    if (await canLaunchUrl(uri)) {
-                                      await launchUrl(uri, mode: LaunchMode.externalApplication);
-                                    } else {
-                                      if (mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(content: Text('Could not open URL')),
-                                        );
-                                      }
-                                    }
-                                  }
-                                },
-                                                                  child: Text(
-                                  _analysisData?['source']?.toString() ?? '',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: _analysisData?['source']?.toString()?.startsWith('http') ?? false
-                                        ? Theme.of(context).primaryColor
-                                        : textColor,
-                                  ),
+                            const SizedBox(height: 8),
+
+                            // Benefits description
+                            if ((_analysisData?['benefits'] as List?)?.isNotEmpty == true)
+                              Text.rich(
+                                TextSpan(
+                                  children: [
+                                    TextSpan(
+                                      text: 'This meal contains beneficial nutrients that will help you ',
+                                      style: TextStyle(
+                                        fontSize: 14.sp,
+                                        color: Colors.grey[700],
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                    TextSpan(
+                                      text: 'Stay Healthy!',
+                                      style: TextStyle(
+                                        fontSize: 14.sp,
+                                        color: Colors.black,
+                                        fontWeight: FontWeight.bold,
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ],
+                          ],
+                        ),
+                      ),
+
+                      // Black section for ingredients and nutrients
+                      Expanded(
+                        child: Container(
+                          width: double.infinity,
+                          color: Colors.black,
+                          padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
+                          child: SingleChildScrollView(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Nutrients Section
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      _safeTranslate('details.nutrients', 'Nutrients') + ':',
+                                      style: TextStyle(
+                                        fontSize: 16.sp,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: Icon(Icons.edit, color: Colors.white70, size: 20),
+                                      onPressed: _editNutrition,
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Protein: ${(_analysisData?['macros']?['proteins'] ?? 0.0).toStringAsFixed(1)}g | '
+                                  'Carbs: ${(_analysisData?['macros']?['carbs'] ?? 0.0).toStringAsFixed(1)}g | '
+                                  'Fats: ${(_analysisData?['macros']?['fats'] ?? 0.0).toStringAsFixed(1)}g',
+                                  style: TextStyle(
+                                    fontSize: 14.sp,
+                                    color: Colors.white70,
+                                    height: 1.4,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+
+                                // Ingredients Section
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      _safeTranslate('details.ingredients', 'Ingredients') + ':',
+                                      style: TextStyle(
+                                        fontSize: 16.sp,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: Icon(Icons.edit, color: Colors.white70, size: 20),
+                                      onPressed: _editIngredients,
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  ingredients.isNotEmpty 
+                                    ? ingredients.join(' | ')
+                                    : 'No ingredients available',
+                                  style: TextStyle(
+                                    fontSize: 14.sp,
+                                    color: Colors.white70,
+                                    height: 1.4,
+                                  ),
+                                ),
+
+                                // Source Section
+                                if (_analysisData?['source'] != null) ...[
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    _safeTranslate('details.source', 'Source') + ':',
+                                    style: TextStyle(
+                                      fontSize: 16.sp,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  GestureDetector(
+                                    onTap: () async {
+                                      final source = _analysisData?['source'];
+                                      if (source != null && source.toString().startsWith('http')) {
+                                        final uri = Uri.parse(source.toString());
+                                        if (await canLaunchUrl(uri)) {
+                                          await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                        }
+                                      }
+                                    },
+                                    child: Text(
+                                      _analysisData?['source']?.toString() ?? '',
+                                      style: TextStyle(
+                                        fontSize: 14.sp,
+                                        color: _analysisData?['source']?.toString()?.startsWith('http') ?? false
+                                            ? Colors.blue[300]
+                                            : Colors.white70,
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
                           ),
                         ),
-                      ],
-
-                      // Keep rest of the content
+                      ),
                     ],
                   ),
                 ),
-              ),
+              ],
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildNutrientItem(String label, String value, String? imagePath) {
+    return Column(
+      children: [
+        if (imagePath != null)
+          Image.asset(
+            imagePath,
+            width: 28,
+            height: 28,
+            errorBuilder: (context, error, stackTrace) => 
+              Icon(Icons.restaurant, size: 28, color: Colors.grey[600]),
+          )
+        else
+          Icon(Icons.restaurant, size: 28, color: Colors.grey[600]),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 14, 
+            fontWeight: FontWeight.w500,
+            color: Colors.black,
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 14, 
+            fontWeight: FontWeight.bold,
+            color: Colors.black,
+          ),
+        ),
+      ],
     );
   }
 }

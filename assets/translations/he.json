@@ -86,7 +86,8 @@
     "fats": "שומנים",
     "left": "נותר",
     "over": "מעל",
-    "ok": "אישור"
+    "ok": "אישור",
+    "retry": "נסה שוב"
   },
   "notifications": {
     "notifications": "התראות",
@@ -336,6 +337,7 @@
     "edit_source": "ערוך מקור",
     "enter_source": "הזן כתובת URL של מקור",
     "analyzing": "מנתח...",
+    "analysis_failed": "הניתוח נכשל",
     "healthiness": {
       "healthy": "בריא",
       "medium": "בינוני",

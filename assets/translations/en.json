@@ -85,7 +85,8 @@
     "fats": "Fats",
     "left": "left",
     "over": "over",
-    "ok": "OK"
+    "ok": "OK",
+    "retry": "Retry"
   },
   "error": {
     "saving_language": "Error saving language"
@@ -310,6 +311,7 @@
     "enter_source": "Enter source URL",
     "learn_more_title": "Learn More",
     "analyzing": "Analyzing...",
+    "analysis_failed": "Analysis failed",
     "healthiness": {
       "healthy": "Healthy",
       "medium": "Medium",

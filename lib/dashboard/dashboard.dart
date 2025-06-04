@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'welcome_section.dart';
+import '../widgets/welcome_section.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -8,14 +8,20 @@ import 'dart:io';
 import '../meal_analysis.dart';
 import '../settings.dart';
 import '../auth/login.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'upload_history.dart';
+import '../widgets/upload_history.dart';
 import 'package:vibration/vibration.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../widgets/bottom_navbar.dart';
+import '../services/upload_service.dart';
+import '../services/image_cache_service.dart';
+import '../main.dart';
+import 'notifications_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final bool isAnalyzing;
-  DashboardScreen({Key? key, this.isAnalyzing = false}) : super(key: key);
+  final GlobalKey<DashboardScreenState>? dashboardKey;
+  
+  DashboardScreen({this.isAnalyzing = false, this.dashboardKey}) : super(key: dashboardKey);
 
   @override
   DashboardScreenState createState() => DashboardScreenState();
@@ -78,7 +84,7 @@ class DashboardScreenState extends State<DashboardScreen> {
     if (image != null) {
       try {
         setState(() { _isUploadingProfile = true; });
-        final url = await ImageService.uploadProfileImage(File(image.path), user.uid);
+        final url = await UploadService.uploadImage(File(image.path));
         await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
           'profileImage': url,
         }, SetOptions(merge: true));
@@ -169,6 +175,14 @@ class DashboardScreenState extends State<DashboardScreen> {
   void _onItemTapped(int index) {
     if (index == 1) {
       _showCameraOrGalleryDialog(context);
+      return;
+    }
+    if (index == 2) {
+      // Navigate to notifications screen
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => NotificationsScreen()),
+      );
       return;
     }
     setState(() {
@@ -284,14 +298,14 @@ class DashboardScreenState extends State<DashboardScreen> {
     final locale = Localizations.localeOf(context).languageCode;
 
     String getMealName(Meal meal) {
-      if (meal.mealNameMap != null) {
-        return meal.mealNameMap![locale] ?? meal.mealNameMap!['en'] ?? meal.name;
+      if (meal.mealName != null) {
+        return meal.mealName![locale] ?? meal.mealName!['en'] ?? meal.name ?? 'Unknown Meal';
       }
-      return meal.name;
+      return meal.name ?? 'Unknown Meal';
     }
     List<String> getIngredients(Meal meal) {
-      if (meal.ingredientsMap != null) {
-        return meal.ingredientsMap![locale] ?? meal.ingredientsMap!['en'] ?? [];
+      if (meal.ingredients != null) {
+        return meal.ingredients![locale] ?? meal.ingredients!['en'] ?? [];
       }
       return [];
     }
@@ -357,9 +371,40 @@ class DashboardScreenState extends State<DashboardScreen> {
                                           ),
                                         )
                                       : (profileImageUrl != null && profileImageUrl.isNotEmpty)
-                                          ? CircleAvatar(
-                                              backgroundImage: NetworkImage(profileImageUrl),
-                                              radius: 24,
+                                          ? ClipOval(
+                                              child: ImageCacheService.getCachedImage(
+                                                profileImageUrl,
+                                                width: 48,
+                                                height: 48,
+                                                fit: BoxFit.cover,
+                                                placeholder: Container(
+                                                  width: 48,
+                                                  height: 48,
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.grey[100],
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  child: Center(
+                                                    child: SizedBox(
+                                                      width: 16,
+                                                      height: 16,
+                                                      child: CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.grey),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                                errorWidget: Container(
+                                                  width: 48,
+                                                  height: 48,
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.grey[100],
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  child: Icon(Icons.person, size: 28, color: Colors.grey[300]),
+                                                ),
+                                              ),
                                             )
                                           : Container(
                                               width: 48,
@@ -527,6 +572,11 @@ class DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
         ),
+      ),
+      bottomNavigationBar: CustomBottomNavBar(
+        currentIndex: _selectedIndex,
+        onTabChanged: _onItemTapped,
+        dashboardKey: globalDashboardKey,
       ),
     );
   }
