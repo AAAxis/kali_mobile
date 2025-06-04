@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "199785460385",
+    "project_id": "kaliai-6dff9",
+    "storage_bucket": "kaliai-6dff9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:199785460385:android:e438bb3ee3cb4fa457b6e0",
+        "android_client_info": {
+          "package_name": "com.theholylabs.kaliai"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "199785460385-ktl0mmfc5f70ra20lhbums15sses2cbe.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.theholylabs.kaliai",
+            "certificate_hash": "fa7e60aad39477da431d1796cadc81d29a8345e6"
+          }
+        },
+        {
+          "client_id": "199785460385-m7hkclq95f4nhnh1gu3b3m9jochvr5ms.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA1jDF9rrkS5BFMpPazCsHGlNylx5OhAac"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "199785460385-m7hkclq95f4nhnh1gu3b3m9jochvr5ms.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "199785460385-9tfqrmkn4bo4morm8285qc9c2d5r0cik.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.theholylabs.kaliai"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

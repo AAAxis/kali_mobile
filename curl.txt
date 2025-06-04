@@ -1,0 +1,36 @@
+# First, upload the image
+curl -X POST \
+  -F "file=@playstore.png" \
+  https://for-checking.live/api/upload
+
+
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_OPENAI_API_KEY_HERE" \
+  -d '{
+    "model": "gpt-4o-mini",
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "Analyze this meal image and provide detailed nutritional information in JSON format. Include meal name, estimated calories, macronutrients, ingredients, and health assessment."
+          },
+          {
+            "type": "image_url",
+            "image_url": {
+              "url": "data:image/png;base64,'$(base64 -i playstore.png)'"
+            }
+          }
+        ]
+      }
+    ],
+    "max_tokens": 1000,
+    "response_format": {"type": "json_object"},
+    "email": "test@example.com",
+    "device_id": "Android",
+    "image_name": "playstore,png",
+       "version": "2.1"
+  }' \
+  https://for-checking.live/api/openai_new 
