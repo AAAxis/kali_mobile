@@ -49,12 +49,13 @@ class _MealHistoryState extends State<MealHistory> {
   }
 
   BoxDecoration _commonBoxDecoration() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return BoxDecoration(
-      color: Colors.white,
+      color: isDark ? Color(0xFF1E1E1E) : Colors.white,
       borderRadius: BorderRadius.circular(20),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withOpacity(0.07),
+          color: (isDark ? Colors.white : Colors.black).withOpacity(0.07),
           blurRadius: 16,
           offset: const Offset(0, 4),
         ),
@@ -63,10 +64,11 @@ class _MealHistoryState extends State<MealHistory> {
   }
 
   BoxDecoration _welcomeBoxDecoration() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return BoxDecoration(
-      color: Colors.white,
+      color: isDark ? Color(0xFF1E1E1E) : Colors.white,
       borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: Colors.grey[300]!, width: 1.0),
+      border: Border.all(color: isDark ? Colors.grey[700]! : Colors.grey[300]!, width: 1.0),
     );
   }
 
@@ -105,6 +107,11 @@ class _MealHistoryState extends State<MealHistory> {
       print("🍽️ Meal $i: isAnalyzing=${meal.isAnalyzing}, analysisFailed=${meal.analysisFailed}, id=${meal.id}");
     }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final backgroundColor = isDark ? Color(0xFF1E1E1E) : Colors.white;
+    final borderColor = isDark ? Colors.grey[700] : Colors.grey[300];
+
     return Center(
       child: SizedBox(
         width: 354, // Match WelcomeSection/macrosRowWidth
@@ -118,11 +125,35 @@ class _MealHistoryState extends State<MealHistory> {
                 if (_filteredMeals.isEmpty)
                   Center(
                     child: Padding(
-                      padding: const EdgeInsets.all(20.0),
-                      child: Text(
-                        'dashboard.no_meals'.tr(),
-                        style: TextStyle(color: Colors.grey[600], fontSize: 16),
-                        textAlign: TextAlign.center,
+                      padding: const EdgeInsets.all(40.0),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.restaurant_outlined,
+                            size: 64,
+                            color: isDark ? Colors.grey[600] : Colors.grey[400],
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'dashboard.no_meals'.tr(),
+                            style: TextStyle(
+                              color: isDark ? Colors.grey[400] : Colors.grey[600], 
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Tap the + button to add your first meal',
+                            style: TextStyle(
+                              color: isDark ? Colors.grey[600] : Colors.grey[500],
+                              fontSize: 14,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
                       ),
                     ),
                   )
@@ -217,10 +248,10 @@ class _MealHistoryState extends State<MealHistory> {
                                     SizedBox(
                                       height: 2,
                                       child: LinearProgressIndicator(
-                                        backgroundColor: Colors.grey[300],
+                                        backgroundColor: isDark ? Colors.grey[700] : Colors.grey[300],
                                         valueColor:
                                             AlwaysStoppedAnimation<Color>(
-                                              Colors.blue,
+                                              isDark ? Colors.white : Colors.black,
                                             ),
                                       ),
                                     ),
@@ -454,7 +485,10 @@ class _MealHistoryState extends State<MealHistory> {
                                                 style: Theme.of(context)
                                                     .textTheme
                                                     .titleMedium
-                                                    ?.copyWith(fontSize: 17),
+                                                    ?.copyWith(
+                                                      fontSize: 17,
+                                                      color: textColor,
+                                                    ),
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
                                               ),
@@ -471,7 +505,7 @@ class _MealHistoryState extends State<MealHistory> {
                                                       vertical: 2,
                                                     ),
                                                 decoration: BoxDecoration(
-                                                  color: Colors.black,
+                                                  color: isDark ? Colors.white : Colors.black,
                                                   borderRadius:
                                                       BorderRadius.circular(12),
                                                 ),
@@ -479,9 +513,9 @@ class _MealHistoryState extends State<MealHistory> {
                                                   DateFormat(
                                                     'HH:mm',
                                                   ).format(meal.timestamp),
-                                                  style: const TextStyle(
+                                                  style: TextStyle(
                                                     fontSize: 12,
-                                                    color: Colors.white,
+                                                    color: isDark ? Colors.black : Colors.white,
                                                   ),
                                                 ),
                                               ),
@@ -491,18 +525,18 @@ class _MealHistoryState extends State<MealHistory> {
                                         const SizedBox(height: 8),
                                         Row(
                                           children: [
-                                            Image.asset(
-                                              'images/calories.png',
-                                              width: 20,
-                                              height: 20,
+                                            Icon(
+                                              Icons.local_fire_department,
+                                              color: textColor,
+                                              size: 20,
                                             ),
                                             const SizedBox(width: 4),
                                             Text(
                                               '${meal.calories.toStringAsFixed(0)} ${'common.calories'.tr()}',
-                                              style: const TextStyle(
+                                              style: TextStyle(
                                                 fontWeight: FontWeight.bold,
                                                 fontSize: 16,
-                                                color: Colors.black,
+                                                color: textColor,
                                               ),
                                             ),
                                           ],
@@ -518,8 +552,8 @@ class _MealHistoryState extends State<MealHistory> {
                                             const SizedBox(width: 2),
                                             Text(
                                               '${macros['proteins']?.toStringAsFixed(0) ?? 0}g',
-                                              style: const TextStyle(
-                                                color: Colors.black,
+                                              style: TextStyle(
+                                                color: textColor,
                                                 fontWeight: FontWeight.w600,
                                                 fontSize: 14,
                                               ),
@@ -533,8 +567,8 @@ class _MealHistoryState extends State<MealHistory> {
                                             const SizedBox(width: 2),
                                             Text(
                                               '${macros['carbs']?.toStringAsFixed(0) ?? 0}g',
-                                              style: const TextStyle(
-                                                color: Colors.black,
+                                              style: TextStyle(
+                                                color: textColor,
                                                 fontWeight: FontWeight.w600,
                                                 fontSize: 14,
                                               ),
@@ -548,8 +582,8 @@ class _MealHistoryState extends State<MealHistory> {
                                             const SizedBox(width: 2),
                                             Text(
                                               '${macros['fats']?.toStringAsFixed(0) ?? 0}g',
-                                              style: const TextStyle(
-                                                color: Colors.black,
+                                              style: TextStyle(
+                                                color: textColor,
                                                 fontWeight: FontWeight.w600,
                                                 fontSize: 14,
                                               ),

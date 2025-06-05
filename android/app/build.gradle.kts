@@ -44,8 +44,8 @@ android {
         applicationId = "com.theholylabs.kaliai"
         minSdkVersion(26)
         targetSdk = flutter.targetSdkVersion
-        versionCode = 55 // 🔁 Increase this by 1 for each new build
-        versionName = "1.55"  // 🆕 This is your human-readable version
+        versionCode = 177 // 🔁 Increase this by 1 for each new build
+        versionName = "2.5"  // 🆕 This is your human-readable version
     }
 
     signingConfigs {

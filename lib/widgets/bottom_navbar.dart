@@ -185,7 +185,8 @@ class _CustomBottomNavBarState extends State<CustomBottomNavBar> {
   }
 
   void _onTabTapped(int index) async {
-    if (index == 1) {
+    // Only handle camera functionality now
+    if (index == 0) {
       // Check if analysis is in progress
       if (_isAnalyzing()) {
         print('🚫 Scan disabled - analysis in progress');
@@ -201,7 +202,7 @@ class _CustomBottomNavBarState extends State<CustomBottomNavBar> {
       await _handleCameraTab();
       return;
     }
-    // Let dashboard handle all other tabs including notifications
+    // Pass other tabs to parent
     widget.onTabChanged(index);
   }
 
@@ -246,46 +247,8 @@ class _CustomBottomNavBarState extends State<CustomBottomNavBar> {
 
   @override
   Widget build(BuildContext context) {
-    final isAnalyzing = _isAnalyzing();
-    
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: BottomNavigationBar(
-        currentIndex: widget.currentIndex,
-        onTap: _onTabTapped,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        selectedItemColor:
-            Theme.of(context).brightness == Brightness.dark
-                ? Colors.white
-                : Colors.black,
-        unselectedItemColor: Colors.grey[600],
-        items: [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'navbar.dashboard'.tr(),
-          ),
-          BottomNavigationBarItem(
-            icon: isAnalyzing 
-                ? Icon(Icons.qr_code_scanner, color: Colors.grey[400])
-                : Icon(Icons.qr_code_scanner),
-            label: 'dashboard.nav_add'.tr(),
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.notifications),
-            label: 'navbar.notifications'.tr(),
-          ),
-        ],
-      ),
-    );
+    // Since we removed the bottom nav bar from dashboard, this widget might not be needed anymore
+    // But keeping it for compatibility if used elsewhere
+    return SizedBox.shrink();
   }
 } 

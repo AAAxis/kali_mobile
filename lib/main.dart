@@ -13,12 +13,16 @@ import 'dart:io';
 import 'dashboard/dashboard.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz;
+import 'package:shared_preferences/shared_preferences.dart';
 
 // Global dashboard key that can be accessed from anywhere in the app
 final GlobalKey<DashboardScreenState> globalDashboardKey = GlobalKey<DashboardScreenState>();
 
 // Global notification plugin
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+
+// Global theme notifier for immediate theme changes
+final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier<ThemeMode>(ThemeMode.light);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -113,11 +117,35 @@ Future<void> _configureRevenueCat() async {
   print('✅ RevenueCat configured successfully for ${Platform.isIOS ? 'iOS' : 'Android'}');
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({Key? key}) : super(key: key);
 
   @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+    _loadThemePreference();
+  }
+
+  Future<void> _loadThemePreference() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final isDark = prefs.getBool('isDarkTheme') ?? false;
+      themeNotifier.value = isDark ? ThemeMode.dark : ThemeMode.light;
+    } catch (e) {
+      print('Error loading theme preference: $e');
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: themeNotifier,
+      builder: (context, themeMode, child) {
     return MaterialApp(
       localizationsDelegates: context.localizationDelegates,
       supportedLocales: context.supportedLocales,
@@ -125,8 +153,10 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.light, // Hardcoded to light for now
+          themeMode: themeMode,
       home: SplashScreen(),
+        );
+      },
     );
   }
 }

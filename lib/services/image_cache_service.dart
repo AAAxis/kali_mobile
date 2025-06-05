@@ -1,8 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -17,12 +15,11 @@ class ImageCacheService {
 
   // Memory cache for quick access
   static final Map<String, Uint8List> _memoryCache = {};
-  static final Map<String, Widget> _widgetCache = {};
   
   // Cache settings
-  static const int maxMemoryCacheSize = 50; // Maximum number of images in memory
-  static const int maxDiskCacheSize = 100; // Maximum number of images on disk
-  static const Duration cacheDuration = Duration(days: 30); // Cache expiry
+  static const int maxMemoryCacheSize = 50;
+  static const int maxDiskCacheSize = 100;
+  static const Duration cacheDuration = Duration(days: 7);
   
   // Directory for cached images
   static Directory? _cacheDirectory;
@@ -35,18 +32,20 @@ class ImageCacheService {
       
       if (!await _cacheDirectory!.exists()) {
         await _cacheDirectory!.create(recursive: true);
+        print('📁 Created image cache directory: ${_cacheDirectory!.path}');
+      } else {
+        print('📁 Image cache directory exists: ${_cacheDirectory!.path}');
       }
       
-      // Clean up old cache files
       await _cleanupOldCacheFiles();
-      
-      print('✅ Image cache service initialized');
+      print('✅ Image cache service initialized successfully');
+      print('💾 Cache directory: ${_cacheDirectory!.path}');
     } catch (e) {
       print('❌ Error initializing image cache service: $e');
     }
   }
   
-  /// Generate a cache key from URL or file path
+  /// Generate a cache key from URL
   static String _generateCacheKey(String source) {
     return md5.convert(utf8.encode(source)).toString();
   }
@@ -56,31 +55,29 @@ class ImageCacheService {
     return path.join(_cacheDirectory!.path, '$cacheKey.jpg');
   }
   
-  /// Check if image exists in memory cache
-  static bool isInMemoryCache(String source) {
-    final cacheKey = _generateCacheKey(source);
-    return _memoryCache.containsKey(cacheKey);
-  }
-  
-  /// Check if image exists in disk cache
+  /// Check if image exists in disk cache and is valid
   static Future<bool> isInDiskCache(String source) async {
     if (_cacheDirectory == null) return false;
     
-    final cacheKey = _generateCacheKey(source);
-    final cachedFile = File(_getCacheFilePath(cacheKey));
-    
-    if (!await cachedFile.exists()) return false;
-    
-    // Check if cache is still valid
-    final stat = await cachedFile.stat();
-    final age = DateTime.now().difference(stat.modified);
-    
-    if (age > cacheDuration) {
-      await cachedFile.delete();
+    try {
+      final cacheKey = _generateCacheKey(source);
+      final cachedFile = File(_getCacheFilePath(cacheKey));
+      
+      if (!await cachedFile.exists()) return false;
+      
+      final stat = await cachedFile.stat();
+      final age = DateTime.now().difference(stat.modified);
+      
+      if (age > cacheDuration) {
+        await cachedFile.delete();
+        return false;
+      }
+      
+      return true;
+    } catch (e) {
+      print('❌ Error checking disk cache: $e');
       return false;
     }
-    
-    return true;
   }
   
   /// Get image data from memory cache
@@ -105,16 +102,18 @@ class ImageCacheService {
   
   /// Store image data in memory cache
   static void storeInMemoryCache(String source, Uint8List data) {
-    final cacheKey = _generateCacheKey(source);
-    
-    // If memory cache is full, remove oldest entry
-    if (_memoryCache.length >= maxMemoryCacheSize) {
-      final firstKey = _memoryCache.keys.first;
-      _memoryCache.remove(firstKey);
-      _widgetCache.remove(firstKey);
+    try {
+      final cacheKey = _generateCacheKey(source);
+      
+      if (_memoryCache.length >= maxMemoryCacheSize) {
+        final firstKey = _memoryCache.keys.first;
+        _memoryCache.remove(firstKey);
+      }
+      
+      _memoryCache[cacheKey] = data;
+    } catch (e) {
+      print('❌ Error storing in memory cache: $e');
     }
-    
-    _memoryCache[cacheKey] = data;
   }
   
   /// Store image data in disk cache
@@ -125,11 +124,7 @@ class ImageCacheService {
       final cacheKey = _generateCacheKey(source);
       final cachedFile = File(_getCacheFilePath(cacheKey));
       await cachedFile.writeAsBytes(data);
-      
-      // Update cache metadata
       await _updateCacheMetadata(cacheKey);
-      
-      // Clean up if disk cache is too large
       await _cleanupDiskCache();
     } catch (e) {
       print('❌ Error storing in disk cache: $e');
@@ -141,55 +136,44 @@ class ImageCacheService {
     try {
       print('📥 Downloading image: $imageUrl');
       
+      final uri = Uri.parse(imageUrl);
+      if (!uri.hasScheme || (!uri.scheme.startsWith('http'))) {
+        print('❌ Invalid URL scheme: ${uri.scheme}');
+        return null;
+      }
+      
       final response = await http.get(
-        Uri.parse(imageUrl),
+        uri,
         headers: {
           'User-Agent': 'KaliAI/1.0',
+          'Accept': 'image/*',
         },
-      );
+      ).timeout(Duration(seconds: 30));
       
-      if (response.statusCode == 200) {
+      print('📡 HTTP Response: ${response.statusCode} for $imageUrl');
+      
+      if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
         final data = response.bodyBytes;
+        print('📦 Downloaded ${data.length} bytes');
         
-        // Store in both memory and disk cache
+        // Store in memory cache first
         storeInMemoryCache(imageUrl, data);
-        await storeInDiskCache(imageUrl, data);
+        print('💾 Stored in memory cache');
         
-        print('✅ Image downloaded and cached: ${data.length} bytes');
+        // Then store in disk cache
+        await storeInDiskCache(imageUrl, data);
+        print('💿 Stored in disk cache');
+        
+        print('✅ Image downloaded and cached successfully: ${data.length} bytes');
         return data;
       } else {
-        print('❌ Failed to download image: ${response.statusCode}');
+        print('❌ Failed to download image: HTTP ${response.statusCode}, body length: ${response.bodyBytes.length}');
         return null;
       }
     } catch (e) {
       print('❌ Error downloading image: $e');
       return null;
     }
-  }
-  
-  /// Get cached widget for display
-  static Widget? getCachedWidget(String source, {
-    BoxFit fit = BoxFit.cover,
-    double? width,
-    double? height,
-    Widget? placeholder,
-    Widget? errorWidget,
-  }) {
-    final cacheKey = _generateCacheKey(source);
-    return _widgetCache[cacheKey];
-  }
-  
-  /// Store widget in cache
-  static void storeCachedWidget(String source, Widget widget) {
-    final cacheKey = _generateCacheKey(source);
-    
-    // If widget cache is full, remove oldest entry
-    if (_widgetCache.length >= maxMemoryCacheSize) {
-      final firstKey = _widgetCache.keys.first;
-      _widgetCache.remove(firstKey);
-    }
-    
-    _widgetCache[cacheKey] = widget;
   }
   
   /// Get cached image widget with automatic caching
@@ -200,16 +184,11 @@ class ImageCacheService {
     double? height,
     Widget? placeholder,
     Widget? errorWidget,
-    bool useMemoryCache = true,
-    bool useDiskCache = true,
   }) {
-    // Check if we have a cached widget first
-    final cachedWidget = getCachedWidget(source);
-    if (cachedWidget != null && useMemoryCache) {
-      return cachedWidget;
+    if (source.isEmpty) {
+      return errorWidget ?? _buildErrorWidget(width, height);
     }
-    
-    // Determine if it's a network URL or local file
+
     final isNetworkImage = source.startsWith('http://') || source.startsWith('https://');
     
     if (isNetworkImage) {
@@ -220,8 +199,6 @@ class ImageCacheService {
         height: height,
         placeholder: placeholder,
         errorWidget: errorWidget,
-        useMemoryCache: useMemoryCache,
-        useDiskCache: useDiskCache,
       );
     } else {
       return _buildLocalCachedImage(
@@ -231,7 +208,6 @@ class ImageCacheService {
         height: height,
         placeholder: placeholder,
         errorWidget: errorWidget,
-        useMemoryCache: useMemoryCache,
       );
     }
   }
@@ -244,11 +220,9 @@ class ImageCacheService {
     double? height,
     Widget? placeholder,
     Widget? errorWidget,
-    bool useMemoryCache = true,
-    bool useDiskCache = true,
   }) {
     return FutureBuilder<Uint8List?>(
-      future: _getNetworkImageData(imageUrl, useMemoryCache: useMemoryCache, useDiskCache: useDiskCache),
+      future: _getNetworkImageData(imageUrl),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return placeholder ?? _buildLoadingPlaceholder(width, height);
@@ -258,7 +232,7 @@ class ImageCacheService {
           return errorWidget ?? _buildErrorWidget(width, height);
         }
         
-        final imageWidget = Image.memory(
+        return Image.memory(
           snapshot.data!,
           fit: fit,
           width: width,
@@ -267,13 +241,6 @@ class ImageCacheService {
             return errorWidget ?? _buildErrorWidget(width, height);
           },
         );
-        
-        // Cache the widget for future use
-        if (useMemoryCache) {
-          storeCachedWidget(imageUrl, imageWidget);
-        }
-        
-        return imageWidget;
       },
     );
   }
@@ -286,10 +253,9 @@ class ImageCacheService {
     double? height,
     Widget? placeholder,
     Widget? errorWidget,
-    bool useMemoryCache = true,
   }) {
     return FutureBuilder<Uint8List?>(
-      future: _getLocalImageData(filePath, useMemoryCache: useMemoryCache),
+      future: _getLocalImageData(filePath),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return placeholder ?? _buildLoadingPlaceholder(width, height);
@@ -299,7 +265,7 @@ class ImageCacheService {
           return errorWidget ?? _buildErrorWidget(width, height);
         }
         
-        final imageWidget = Image.memory(
+        return Image.memory(
           snapshot.data!,
           fit: fit,
           width: width,
@@ -308,62 +274,45 @@ class ImageCacheService {
             return errorWidget ?? _buildErrorWidget(width, height);
           },
         );
-        
-        // Cache the widget for future use
-        if (useMemoryCache) {
-          storeCachedWidget(filePath, imageWidget);
-        }
-        
-        return imageWidget;
       },
     );
   }
   
   /// Get network image data with caching
-  static Future<Uint8List?> _getNetworkImageData(
-    String imageUrl, {
-    bool useMemoryCache = true,
-    bool useDiskCache = true,
-  }) async {
+  static Future<Uint8List?> _getNetworkImageData(String imageUrl) async {
+    print('🔍 Looking for image: $imageUrl');
+    
     // Check memory cache first
-    if (useMemoryCache) {
-      final memoryData = getFromMemoryCache(imageUrl);
-      if (memoryData != null) {
-        print('📦 Image loaded from memory cache');
-        return memoryData;
-      }
+    final memoryData = getFromMemoryCache(imageUrl);
+    if (memoryData != null) {
+      print('📦 Image loaded from memory cache: ${memoryData.length} bytes');
+      return memoryData;
     }
+    print('❌ Not found in memory cache');
     
     // Check disk cache
-    if (useDiskCache) {
-      final diskData = await getFromDiskCache(imageUrl);
-      if (diskData != null) {
-        print('💾 Image loaded from disk cache');
-        // Also store in memory cache for faster access
-        if (useMemoryCache) {
-          storeInMemoryCache(imageUrl, diskData);
-        }
-        return diskData;
-      }
+    final diskData = await getFromDiskCache(imageUrl);
+    if (diskData != null) {
+      print('💾 Image loaded from disk cache: ${diskData.length} bytes');
+      storeInMemoryCache(imageUrl, diskData);
+      print('📦 Stored in memory cache for future use');
+      return diskData;
     }
+    print('❌ Not found in disk cache');
     
     // Download and cache
+    print('🌐 Downloading from network...');
     return await _downloadAndCacheImage(imageUrl);
   }
   
   /// Get local image data with caching
-  static Future<Uint8List?> _getLocalImageData(
-    String filePath, {
-    bool useMemoryCache = true,
-  }) async {
+  static Future<Uint8List?> _getLocalImageData(String filePath) async {
     try {
       // Check memory cache first
-      if (useMemoryCache) {
-        final memoryData = getFromMemoryCache(filePath);
-        if (memoryData != null) {
-          print('📦 Local image loaded from memory cache');
-          return memoryData;
-        }
+      final memoryData = getFromMemoryCache(filePath);
+      if (memoryData != null) {
+        print('📦 Local image loaded from memory cache');
+        return memoryData;
       }
       
       final file = File(filePath);
@@ -373,12 +322,7 @@ class ImageCacheService {
       }
       
       final data = await file.readAsBytes();
-      
-      // Store in memory cache
-      if (useMemoryCache) {
-        storeInMemoryCache(filePath, data);
-      }
-      
+      storeInMemoryCache(filePath, data);
       print('📱 Local image loaded from file');
       return data;
     } catch (e) {
@@ -394,9 +338,13 @@ class ImageCacheService {
       height: height,
       color: Colors.grey[100],
       child: const Center(
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          valueColor: AlwaysStoppedAnimation<Color>(Colors.grey),
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.grey),
+          ),
         ),
       ),
     );
@@ -422,10 +370,7 @@ class ImageCacheService {
       final prefs = await SharedPreferences.getInstance();
       final metadata = prefs.getStringList('image_cache_metadata') ?? [];
       
-      // Remove existing entry if present
       metadata.removeWhere((entry) => entry.startsWith('$cacheKey:'));
-      
-      // Add new entry with timestamp
       metadata.add('$cacheKey:${DateTime.now().millisecondsSinceEpoch}');
       
       await prefs.setStringList('image_cache_metadata', metadata);
@@ -466,14 +411,12 @@ class ImageCacheService {
       
       if (metadata.length <= maxDiskCacheSize) return;
       
-      // Sort by timestamp (oldest first)
       metadata.sort((a, b) {
         final timestampA = int.parse(a.split(':')[1]);
         final timestampB = int.parse(b.split(':')[1]);
         return timestampA.compareTo(timestampB);
       });
       
-      // Remove oldest files
       final filesToRemove = metadata.take(metadata.length - maxDiskCacheSize);
       for (final entry in filesToRemove) {
         final cacheKey = entry.split(':')[0];
@@ -486,7 +429,6 @@ class ImageCacheService {
         }
       }
       
-      // Update metadata
       final remainingMetadata = metadata.skip(metadata.length - maxDiskCacheSize).toList();
       await prefs.setStringList('image_cache_metadata', remainingMetadata);
       
@@ -498,11 +440,8 @@ class ImageCacheService {
   /// Clear all caches
   static Future<void> clearAllCaches() async {
     try {
-      // Clear memory cache
       _memoryCache.clear();
-      _widgetCache.clear();
       
-      // Clear disk cache
       if (_cacheDirectory != null && await _cacheDirectory!.exists()) {
         final files = await _cacheDirectory!.list().toList();
         for (final file in files) {
@@ -512,7 +451,6 @@ class ImageCacheService {
         }
       }
       
-      // Clear metadata
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('image_cache_metadata');
       
@@ -520,53 +458,5 @@ class ImageCacheService {
     } catch (e) {
       print('❌ Error clearing caches: $e');
     }
-  }
-  
-  /// Get cache statistics
-  static Future<Map<String, dynamic>> getCacheStats() async {
-    try {
-      final memoryCount = _memoryCache.length;
-      final widgetCount = _widgetCache.length;
-      
-      int diskCount = 0;
-      int diskSizeBytes = 0;
-      
-      if (_cacheDirectory != null && await _cacheDirectory!.exists()) {
-        final files = await _cacheDirectory!.list().toList();
-        for (final file in files) {
-          if (file is File) {
-            diskCount++;
-            final stat = await file.stat();
-            diskSizeBytes += stat.size;
-          }
-        }
-      }
-      
-      return {
-        'memoryCount': memoryCount,
-        'widgetCount': widgetCount,
-        'diskCount': diskCount,
-        'diskSizeBytes': diskSizeBytes,
-        'diskSizeMB': (diskSizeBytes / (1024 * 1024)).toStringAsFixed(2),
-      };
-    } catch (e) {
-      print('❌ Error getting cache stats: $e');
-      return {};
-    }
-  }
-  
-  /// Preload image into cache
-  static Future<void> preloadImage(String source) async {
-    if (source.startsWith('http://') || source.startsWith('https://')) {
-      await _getNetworkImageData(source);
-    } else {
-      await _getLocalImageData(source);
-    }
-  }
-  
-  /// Preload multiple images
-  static Future<void> preloadImages(List<String> sources) async {
-    final futures = sources.map((source) => preloadImage(source));
-    await Future.wait(futures);
   }
 } 

@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../meal_analysis.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:async';
 import 'package:intl/intl.dart';
 
 class WelcomeSection extends StatefulWidget {
@@ -42,45 +40,14 @@ class WelcomeSection extends StatefulWidget {
 }
 
 class _WelcomeSectionState extends State<WelcomeSection> {
-  int _pageIndex = 0; // For PageView
-  final PageController _pageController = PageController();
-  late Future<Map<String, dynamic>> _statsFuture;
-  Timer? _autoScrollTimer;
-  bool _isInitialized = false;
-
-  // Default values to use when SharedPreferences fails
-  final Map<String, dynamic> _defaultStats = {
-    'steps': 8000,
-    'sleep_hours': 7.5,
-  };
-
   @override
   void initState() {
     super.initState();
-    _statsFuture = _fetchStatsFromPrefs();
-    _startAutoScroll();
   }
 
   @override
   void dispose() {
-    _pageController.dispose();
-    _autoScrollTimer?.cancel();
     super.dispose();
-  }
-
-  void _startAutoScroll() {
-    _autoScrollTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
-      if (mounted) {
-        setState(() {
-          _pageIndex = (_pageIndex + 1) % 3; // Cycle through 0, 1, 2
-        });
-        _pageController.animateToPage(
-          _pageIndex,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
-      }
-    });
   }
 
   @override
@@ -114,57 +81,18 @@ class _WelcomeSectionState extends State<WelcomeSection> {
             ),
           ),
         ),
-        // Use FutureBuilder just for the stats cards
+        // Show only calories card (no PageView needed)
         Center(
           child: SizedBox(
             width: macrosRowWidth,
             height: 131,
-            child: FutureBuilder<Map<String, dynamic>>(
-              future: _statsFuture,
-              builder: (context, snapshot) {
-                // Use default values if error or still loading
-                Map<String, dynamic> stats = _defaultStats;
-                
-                if (snapshot.hasData) {
-                  stats = snapshot.data!;
-                  _isInitialized = true;
-                } else if (snapshot.hasError) {
-                  print('Error loading stats: ${snapshot.error}');
-                  // Continue with default values
-                }
-                
-                // Always show the PageView with our stats (either from prefs or defaults)
-                return PageView(
-                  controller: _pageController,
-                  onPageChanged: (index) {
-                    setState(() => _pageIndex = index);
-                  },
-                  children: [
-                    _buildCaloriesCard(
-                      caloriesRemaining,
-                      widget.caloriesGoal,
-                      cardColor,
-                      textColor,
-                      subTextColor,
-                      borderColor,
-                    ),
-                    _buildStepsCard(
-                      stats['steps'] as int,
-                      cardColor,
-                      textColor,
-                      subTextColor,
-                      borderColor,
-                    ),
-                    _buildSleepCard(
-                      stats['sleep_hours'] as double,
-                      cardColor,
-                      textColor,
-                      subTextColor,
-                      borderColor,
-                    ),
-                  ],
-                );
-              },
+            child: _buildCaloriesCard(
+              caloriesRemaining,
+              widget.caloriesGoal,
+              cardColor,
+              textColor,
+              subTextColor,
+              borderColor,
             ),
           ),
         ),
@@ -221,47 +149,6 @@ class _WelcomeSectionState extends State<WelcomeSection> {
         ),
       ],
     );
-  }
-
-  Future<Map<String, dynamic>> _fetchStatsFromPrefs() async {
-    try {
-      print('Fetching stats from prefs...');
-      final prefs = await SharedPreferences.getInstance();
-      print('Prefs loaded');
-      
-      // Safe parsing with fallbacks
-      int steps = _defaultStats['steps'] as int;
-      double sleepHours = _defaultStats['sleep_hours'] as double;
-      
-      try {
-        dynamic stepsValue = prefs.get('steps');
-        if (stepsValue is int) {
-          steps = stepsValue;
-        } else if (stepsValue is String) {
-          steps = int.tryParse(stepsValue) ?? _defaultStats['steps'] as int;
-        }
-      } catch (e) {
-        print('Error parsing steps: $e');
-      }
-      
-      try {
-        final sleepValue = prefs.getDouble('sleep_hours');
-        if (sleepValue != null) {
-          sleepHours = sleepValue;
-        }
-      } catch (e) {
-        print('Error parsing sleep_hours: $e');
-      }
-      
-      return {
-        'steps': steps,
-        'sleep_hours': sleepHours,
-      };
-    } catch (e) {
-      print('Error in _fetchStatsFromPrefs: $e');
-      // Return default values on any error
-      return _defaultStats;
-    }
   }
 
   Widget _buildCaloriesCard(
@@ -326,114 +213,6 @@ class _WelcomeSectionState extends State<WelcomeSection> {
                 ),
                 Icon(Icons.local_fire_department, size: 32, color: textColor),
               ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStepsCard(
-    int steps,
-    Color cardColor,
-    Color textColor,
-    Color? subTextColor,
-    Color? borderColor,
-  ) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      padding: const EdgeInsets.all(18),
-      decoration: _welcomeBoxDecoration(cardColor, borderColor),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  steps.toString(),
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: textColor,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'dashboard.steps_today'.tr(),
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 24),
-          SizedBox(
-            width: 70,
-            height: 70,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Icon(Icons.directions_walk, size: 40, color: textColor),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSleepCard(
-    double hours,
-    Color cardColor,
-    Color textColor,
-    Color? subTextColor,
-    Color? borderColor,
-  ) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      padding: const EdgeInsets.all(18),
-      decoration: _welcomeBoxDecoration(cardColor, borderColor),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  hours.toStringAsFixed(1),
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: textColor,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'dashboard.sleep_hours'.tr(),
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 24),
-          SizedBox(
-            width: 70,
-            height: 70,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [Icon(Icons.bedtime, size: 40, color: textColor)],
             ),
           ),
         ],

@@ -6,6 +6,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'dart:math';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
+import '../app_theme.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({Key? key}) : super(key: key);
@@ -22,7 +23,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   void initState() {
     super.initState();
     _requestNotificationPermissions();
-    _scheduleDailyNotification();
   }
 
   Future<void> _requestNotificationPermissions() async {
@@ -102,50 +102,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     ];
   }
 
-  Future<void> _scheduleDailyNotification() async {
-    final notifications = getNotifications();
-    final random = Random();
-    final notification = notifications[random.nextInt(notifications.length)];
-
-    const AndroidNotificationDetails androidPlatformChannelSpecifics =
-        AndroidNotificationDetails(
-      'daily_reminder_channel_id',
-      'Daily Reminders',
-      channelDescription: 'Daily meal logging reminders',
-      importance: Importance.max,
-      priority: Priority.high,
-      showWhen: false,
-    );
-    const NotificationDetails platformChannelSpecifics =
-        NotificationDetails(android: androidPlatformChannelSpecifics);
-
-    // Schedule for 7:00 PM local time
-    final now = DateTime.now();
-    final firstNotificationTime = DateTime(
-      now.year,
-      now.month,
-      now.day,
-      19, // 7 PM
-      0,
-    ).isAfter(now)
-        ? DateTime(now.year, now.month, now.day, 19, 0)
-        : DateTime(now.year, now.month, now.day + 1, 19, 0);
-
-    await flutterLocalNotificationsPlugin.zonedSchedule(
-      0,
-      notification['title'],
-      notification['subtitle'],
-      tz.TZDateTime.from(firstNotificationTime, tz.local),
-      platformChannelSpecifics,
-      matchDateTimeComponents: DateTimeComponents.time,
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final notifications = getNotifications();
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = AppTheme.getNotificationsColors(isDark);
     
     // Pick one notification per day
     final now = DateTime.now();
@@ -153,60 +114,134 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final notification = notifications[index];
 
     return Scaffold(
-      backgroundColor: isDark ? Colors.black : Colors.white,
+      backgroundColor: colors['background'],
       appBar: AppBar(
-        title: Text('notifications.notifications'.tr()),
-        backgroundColor: isDark ? Colors.black : Colors.white,
-        foregroundColor: isDark ? Colors.white : Colors.black,
+        title: Text(
+          'notifications.notifications'.tr(),
+          style: TextStyle(color: colors['text']),
+        ),
+        backgroundColor: Colors.transparent,
+        foregroundColor: colors['text'],
         elevation: 0,
         iconTheme: IconThemeData(
-          color: isDark ? Colors.white : Colors.black,
+          color: colors['icon'],
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.only(top: 16),
-        child: notifications.isEmpty
-            ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+      body: Container(
+        color: colors['background'],
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: notifications.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: colors['primary']!.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.notifications_outlined,
+                          size: 64,
+                          color: colors['primary'],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Text(
+                        'notifications.none_yet'.tr(),
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w500,
+                          color: colors['text'],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Check back later for updates',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: colors['textSecondary'],
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      Icons.notifications,
-                      size: 64,
-                      color: isDark ? Colors.grey[600] : Colors.grey[400],
-                    ),
-                    const SizedBox(height: 16),
                     Text(
-                      'notifications.none_yet'.tr(),
+                      'Today\'s Reminder',
                       style: TextStyle(
-                        fontSize: 16,
-                        color: isDark ? Colors.grey[400] : Colors.grey[600],
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: colors['text'],
                       ),
                     ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: colors['surface'],
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: colors['primary']!.withOpacity(0.1),
+                            blurRadius: 8,
+                            offset: Offset(0, 4),
+                          ),
+                        ],
+                        border: Border.all(
+                          color: colors['primary']!.withOpacity(0.2),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: colors['primary']!.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              Icons.notifications_active,
+                              size: 32,
+                              color: colors['primary'],
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  notification['title'] ?? '',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                    color: colors['text'],
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  notification['subtitle'] ?? '',
+                                  style: TextStyle(
+                                    color: colors['textSecondary'],
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
                   ],
                 ),
-              )
-            : ListTile(
-                leading: Icon(
-                  Icons.notifications,
-                  size: 48,
-                  color: Colors.grey[400],
-                ),
-                title: Text(
-                  notification['title'] ?? '',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : Colors.black,
-                  ),
-                ),
-                subtitle: Text(
-                  notification['subtitle'] ?? '',
-                  style: TextStyle(
-                    color: isDark ? Colors.grey[400] : Colors.grey[600],
-                  ),
-                ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              ),
+        ),
       ),
     );
   }

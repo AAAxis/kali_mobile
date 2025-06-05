@@ -1,0 +1,97 @@
+# Environment files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env.staging
+*.env
+.envrc
+
+# API Keys and sensitive configuration
+config/secrets.dart
+lib/config/api_keys.dart
+google-services.json
+GoogleService-Info.plist
+firebase_options.dart
+
+# Dart/Flutter specific
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+flutter_*.png
+flutter_*.icns
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Build artifacts
+*.apk
+*.aab
+*.ipa
+*.app
+*.dSYM.zip
+*.dSYM
+
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# Dependency directories
+node_modules/
+
+# Temporary folders
+tmp/
+temp/
+
+# Crashlytics
+**/crashlytics-build.properties
+
+# Key files (should never be committed)
+**/*.p8
+**/*.p12
+**/*.key
+**/*.pem
+**/*.crt
+**/*.cer
+**/*.mobileprovision
+**/*.keystore
+**/*.jks
+
+# Local configuration
+local.properties
+key.properties 

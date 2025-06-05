@@ -24,6 +24,35 @@ class AppTheme {
   static const Color errorColor = Color(0xFFB00020);
   static const Color successColor = Color(0xFF4CAF50);
   static const Color warningColor = Color(0xFFFF9800);
+
+  // Custom colors for specific screens
+  static const Color dashboardPrimary = Color(0xFF6366F1); // Indigo
+  static const Color dashboardSecondary = Color(0xFF8B5CF6); // Purple
+  static const Color dashboardBackground = Color(0xFFF8FAFC); // Light blue-gray
+  static const Color dashboardSurface = Color(0xFFFFFFFF);
+  static const Color dashboardAccent = Color(0xFF10B981); // Emerald
+
+  static const Color settingsPrimary = Color(0xFF059669); // Emerald
+  static const Color settingsSecondary = Color(0xFF0891B2); // Cyan
+  static const Color settingsBackground = Color(0xFFF0FDF4); // Light green
+  static const Color settingsSurface = Color(0xFFFFFFFF);
+  static const Color settingsAccent = Color(0xFF6366F1); // Indigo
+
+  static const Color notificationsPrimary = Color(0xFFDC2626); // Red
+  static const Color notificationsSecondary = Color(0xFFEA580C); // Orange
+  static const Color notificationsBackground = Color(0xFFFEF2F2); // Light red
+  static const Color notificationsSurface = Color(0xFFFFFFFF);
+  static const Color notificationsAccent = Color(0xFFF59E0B); // Amber
+
+  // Dark versions
+  static const Color dashboardBackgroundDark = Color(0xFF000000); // Pure black
+  static const Color dashboardSurfaceDark = Color(0xFF1E1E1E); // Dark gray
+
+  static const Color settingsBackgroundDark = Color(0xFF064E3B); // Dark emerald
+  static const Color settingsSurfaceDark = Color(0xFF065F46); // Emerald
+
+  static const Color notificationsBackgroundDark = Color(0xFF7F1D1D); // Dark red
+  static const Color notificationsSurfaceDark = Color(0xFF991B1B); // Red
   
   // Light Theme
   static ThemeData get lightTheme {
@@ -267,6 +296,46 @@ class AppTheme {
         thickness: 1,
       ),
     );
+  }
+
+  // Custom theme configurations for specific screens
+  static Map<String, Color> getDashboardColors(bool isDark) {
+    return {
+      'background': isDark ? dashboardBackgroundDark : dashboardBackground,
+      'surface': isDark ? dashboardSurfaceDark : dashboardSurface,
+      'primary': dashboardPrimary,
+      'secondary': dashboardSecondary,
+      'accent': dashboardAccent,
+      'text': isDark ? Colors.white : Colors.black87,
+      'textSecondary': isDark ? Colors.grey[300]! : Colors.grey[600]!,
+      'icon': isDark ? Colors.white70 : Colors.grey[700]!,
+    };
+  }
+
+  static Map<String, Color> getSettingsColors(bool isDark) {
+    return {
+      'background': isDark ? Colors.black : Colors.white,
+      'surface': isDark ? Color(0xFF1E1E1E) : Colors.white,
+      'primary': isDark ? Colors.white : Colors.black,
+      'secondary': isDark ? Colors.grey[300]! : Colors.grey[700]!,
+      'accent': isDark ? Colors.white70 : Colors.black87,
+      'text': isDark ? Colors.white : Colors.black87,
+      'textSecondary': isDark ? Colors.grey[300]! : Colors.grey[600]!,
+      'icon': isDark ? Colors.white70 : Colors.grey[700]!,
+    };
+  }
+
+  static Map<String, Color> getNotificationsColors(bool isDark) {
+    return {
+      'background': isDark ? Colors.black : Colors.white,
+      'surface': isDark ? Color(0xFF1E1E1E) : Colors.white,
+      'primary': isDark ? Colors.white : Colors.black,
+      'secondary': isDark ? Colors.grey[300]! : Colors.grey[700]!,
+      'accent': isDark ? Colors.white70 : Colors.black87,
+      'text': isDark ? Colors.white : Colors.black87,
+      'textSecondary': isDark ? Colors.grey[300]! : Colors.grey[600]!,
+      'icon': isDark ? Colors.white70 : Colors.grey[700]!,
+    };
   }
   
   // Current theme (hardcoded to light for now)

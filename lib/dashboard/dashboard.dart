@@ -11,11 +11,14 @@ import '../auth/login.dart';
 import '../widgets/upload_history.dart';
 import 'package:vibration/vibration.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../widgets/bottom_navbar.dart';
 import '../services/upload_service.dart';
 import '../services/image_cache_service.dart';
 import '../main.dart';
 import 'notifications_screen.dart';
+import '../services/paywall_service.dart';
+import '../camera/camera_page.dart';
+import 'package:camera/camera.dart';
+import '../app_theme.dart';
 
 class DashboardScreen extends StatefulWidget {
   final bool isAnalyzing;
@@ -34,9 +37,6 @@ class DashboardScreenState extends State<DashboardScreen> {
   final List<DateTime> days = List.generate(7, (i) => DateTime.now().subtract(Duration(days: 6 - i)));
   DateTime? _selectedDay = DateTime.now();
   final ImagePicker _picker = ImagePicker();
-  bool _isUploadingProfile = false;
-
-  int _selectedIndex = 0;
 
   List<Meal> _meals = [];
   bool _isMealsLoading = false;
@@ -46,6 +46,9 @@ class DashboardScreenState extends State<DashboardScreen> {
   double _proteinGoal = 150;
   double _carbsGoal = 300;
   double _fatsGoal = 65;
+
+  // Camera controller for pre-initialization
+  CameraController? _preInitializedController;
 
   Future<void> _loadNutritionGoals() async {
     final prefs = await SharedPreferences.getInstance();
@@ -65,38 +68,6 @@ class DashboardScreenState extends State<DashboardScreen> {
              mealDate.month == _selectedDay!.month &&
              mealDate.day == _selectedDay!.day;
     }).toList();
-  }
-
-  Future<void> _onProfileTap() async {
-    if (!_isUserAuthenticated()) {
-      // Navigate directly to login screen
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => LoginScreen()),
-      );
-      return;
-    }
-    
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return; // Additional safety check
-    
-    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
-      try {
-        setState(() { _isUploadingProfile = true; });
-        final url = await UploadService.uploadImage(File(image.path));
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-          'profileImage': url,
-        }, SetOptions(merge: true));
-      } catch (e) {
-        print('Error uploading profile image: $e');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to upload profile image')),
-        );
-      } finally {
-        setState(() { _isUploadingProfile = false; });
-      }
-    }
   }
 
   Future<void> _showCameraOrGalleryDialog(BuildContext context) async {
@@ -172,24 +143,6 @@ class DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  void _onItemTapped(int index) {
-    if (index == 1) {
-      _showCameraOrGalleryDialog(context);
-      return;
-    }
-    if (index == 2) {
-      // Navigate to notifications screen
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => NotificationsScreen()),
-      );
-      return;
-    }
-    setState(() {
-      _selectedIndex = index;
-    });
-  }
-
   Future<void> loadMealsFromFirebase() async {
     setState(() { _isMealsLoading = true; });
     try {
@@ -250,6 +203,199 @@ class DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     _loadNutritionGoals();
     loadMealsFromFirebase();
+    _preInitializeCamera();
+  }
+
+  @override
+  void dispose() {
+    _preInitializedController?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _preInitializeCamera() async {
+    try {
+      final cameras = await availableCameras();
+      if (cameras.isNotEmpty) {
+        _preInitializedController = CameraController(
+          cameras.first,
+          ResolutionPreset.high,
+        );
+        await _preInitializedController!.initialize();
+        print('✅ Camera pre-initialized successfully');
+      }
+    } catch (e) {
+      print('❌ Failed to pre-initialize camera: $e');
+    }
+  }
+
+  // Check if user has used their free scan
+  Future<bool> _checkIfUserHasUsedFreeScan() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        // Check local storage for non-authenticated users
+        final localMeals = await Meal.loadFromLocalStorage();
+        final hasUsedFreeScan = localMeals.isNotEmpty;
+        print('🔍 Free scan check for non-authenticated user: hasUsed=$hasUsedFreeScan (${localMeals.length} local meals)');
+        return hasUsedFreeScan;
+      }
+
+      // Check Firebase for logged-in users
+      final snapshot = await FirebaseFirestore.instance
+          .collection('analyzed_meals')
+          .where('userId', isEqualTo: user.uid)
+          .limit(1)
+          .get();
+
+      final hasUsedFreeScan = snapshot.docs.isNotEmpty;
+      print('🔍 Free scan check for user ${user.uid}: hasUsed=$hasUsedFreeScan');
+      return hasUsedFreeScan;
+    } catch (e) {
+      print('❌ Error checking free scan usage: $e');
+      return false;
+    }
+  }
+
+  // Function to show custom camera screen as bottom sheet
+  Future<void> _showCustomCamera() async {
+    try {
+      // Show camera as bottom sheet with smooth animation
+      final result = await showModalBottomSheet<File>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (context) => Container(
+          height: MediaQuery.of(context).size.height,
+          child: CameraScreen(
+            preInitializedController: _preInitializedController,
+          ),
+        ),
+      );
+
+      // Handle the result from camera screen
+      if (result != null && result is File) {
+        print('📸 Camera returned image: ${result.path}');
+        
+        // Analyze the image (analyzeImageFile will handle creating the analyzing meal)
+        try {
+          print('🎯 About to call analyzeImageFile...');
+          await analyzeImageFile(
+            imageFile: result,
+            meals: _meals,
+            updateMeals: (updatedMeals) {
+              print('📊 Updating meals: ${updatedMeals.length} total meals');
+              setState(() => _meals = updatedMeals);
+            },
+            context: context,
+            source: ImageSource.camera,
+          );
+          print('✅ analyzeImageFile completed successfully');
+        } catch (analysisError) {
+          print('❌ Error in analyzeImageFile: $analysisError');
+          
+          // Show error message
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Analysis failed. Please try again.'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+        
+        // Final refresh
+        print('🎯 Calling final refresh...');
+        await refreshDashboard();
+        print('✅ Final refresh completed');
+      } else {
+        print('❌ No image result from camera');
+      }
+      
+      // Re-initialize camera after use
+      _preInitializeCamera();
+    } catch (e) {
+      print('❌ Error showing custom camera: $e');
+      print('❌ Stack trace: ${e.toString()}');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to open camera: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // Check if any meal is currently being analyzed
+  bool _isAnalyzing() {
+    final hasAnalyzingMeal = _meals.any((meal) => meal.isAnalyzing);
+    print('🎬 Checking if analyzing: ${hasAnalyzingMeal ? 'YES' : 'NO'} (${_meals.where((m) => m.isAnalyzing).length} analyzing meals)');
+    return hasAnalyzingMeal;
+  }
+
+  Future<void> _handleCameraAction() async {
+    print('🎯 Camera action button pressed!');
+    
+    try {
+      // Check if analysis is in progress
+      if (_isAnalyzing()) {
+        print('🚫 Scan disabled - analysis in progress');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Please wait for current analysis to complete'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        return;
+      }
+
+      print('🔍 Checking subscription status...');
+      // Check subscription before allowing camera access
+      final hasActiveSubscription = await PaywallService.hasActiveSubscription();
+      print('💳 Has subscription: $hasActiveSubscription');
+      
+      if (!hasActiveSubscription) {
+        // Check if user has used their free scan
+        final hasUsedFreeScan = await _checkIfUserHasUsedFreeScan();
+        print('🆓 Has used free scan: $hasUsedFreeScan');
+        
+        if (hasUsedFreeScan) {
+          print('🔒 No active subscription and free scan already used, showing paywall...');
+          
+          // Show Sale paywall first
+          final purchased = await PaywallService.showPaywall(context, forceCloseOnRestore: true);
+          if (!purchased) {
+            // Show Offer paywall as fallback
+            print('💡 User closed Sale paywall, showing Offer paywall as fallback...');
+            final purchasedOffer = await PaywallService.showPaywall(
+              context, 
+              offeringId: 'Offer',
+              forceCloseOnRestore: true,
+            );
+            if (!purchasedOffer) {
+              // User cancelled both paywalls
+              print('❌ User cancelled paywalls, exiting camera action');
+              return;
+            }
+          }
+        } else {
+          print('✅ No subscription but free scan available, allowing camera access...');
+        }
+      } else {
+        print('✅ Active subscription found, allowing camera access...');
+      }
+
+      // Show custom camera
+      print('📸 Opening camera...');
+      await _showCustomCamera();
+      
+    } catch (e) {
+      print('❌ Error handling camera action: $e');
+      print('❌ Stack trace: ${e.toString()}');
+    }
   }
 
   Future<void> refreshDashboard() async {
@@ -289,10 +435,9 @@ class DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final cardColor = Colors.white;
-    final textColor = Colors.black;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final subTextColor = isDark ? Colors.grey[400] : Colors.grey[600];
+    final colors = AppTheme.getDashboardColors(isDark);
+    
     final user = FirebaseAuth.instance.currentUser;
     final isAuthenticated = _isUserAuthenticated();
     final locale = Localizations.localeOf(context).languageCode;
@@ -322,7 +467,8 @@ class DashboardScreenState extends State<DashboardScreen> {
     };
 
     return Scaffold(
-      backgroundColor: isDark ? Colors.black : Colors.white,
+      backgroundColor: colors['background'],
+      extendBodyBehindAppBar: true,
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: refreshDashboard,
@@ -345,111 +491,16 @@ class DashboardScreenState extends State<DashboardScreen> {
                           profileImageUrl = data['profileImage'] as String?;
                         }
                       }
-                      return Padding(
+                      return Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.transparent,
+                        ),
                         child: Row(
                           children: [
+                            // Profile image (tap to go to settings)
                             GestureDetector(
-                              onTap: _onProfileTap,
-                              child: Stack(
-                                alignment: Alignment.center,
-                                children: [
-                                  _isUploadingProfile
-                                      ? Container(
-                                          width: 48,
-                                          height: 48,
-                                          decoration: BoxDecoration(
-                                            color: Colors.black.withOpacity(0.4),
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: Center(
-                                            child: SizedBox(
-                                              width: 24,
-                                              height: 24,
-                                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                            ),
-                                          ),
-                                        )
-                                      : (profileImageUrl != null && profileImageUrl.isNotEmpty)
-                                          ? ClipOval(
-                                              child: ImageCacheService.getCachedImage(
-                                                profileImageUrl,
-                                                width: 48,
-                                                height: 48,
-                                                fit: BoxFit.cover,
-                                                placeholder: Container(
-                                                  width: 48,
-                                                  height: 48,
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.grey[100],
-                                                    shape: BoxShape.circle,
-                                                  ),
-                                                  child: Center(
-                                                    child: SizedBox(
-                                                      width: 16,
-                                                      height: 16,
-                                                      child: CircularProgressIndicator(
-                                                        strokeWidth: 2,
-                                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.grey),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-                                                errorWidget: Container(
-                                                  width: 48,
-                                                  height: 48,
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.grey[100],
-                                                    shape: BoxShape.circle,
-                                                  ),
-                                                  child: Icon(Icons.person, size: 28, color: Colors.grey[300]),
-                                                ),
-                                              ),
-                                            )
-                                          : Container(
-                                              width: 48,
-                                              height: 48,
-                                              decoration: BoxDecoration(
-                                                color: Colors.grey[100],
-                                                shape: BoxShape.circle,
-                                              ),
-                                              child: Icon(Icons.person, size: 28, color: Colors.grey[300]),
-                                            ),
-                                ],
-                              ),
-                            ),
-                            SizedBox(width: 12),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if (isPremium)
-                                  Row(
-                                    children: [
-                                      Text(
-                                        'premium'.tr(),
-                                        style: TextStyle(
-                                          color: Colors.black,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                      Icon(Icons.star, color: Colors.amber, size: 16),
-                                    ],
-                                  ),
-                                Text(
-                                  userName,
-                                  style: TextStyle(
-                                    color: textColor,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 20,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Spacer(),
-                            IconButton(
-                              icon: Icon(Icons.menu, color: textColor),
-                              onPressed: () {
+                              onTap: () {
                                 if (!isAuthenticated) {
                                   Navigator.push(
                                     context,
@@ -462,6 +513,86 @@ class DashboardScreenState extends State<DashboardScreen> {
                                   );
                                 }
                               },
+                              child: (profileImageUrl != null && profileImageUrl.isNotEmpty)
+                                  ? ClipOval(
+                                      child: ImageCacheService.getCachedImage(
+                                        profileImageUrl,
+                                        width: 48,
+                                        height: 48,
+                                        fit: BoxFit.cover,
+                                        placeholder: Container(
+                                          width: 48,
+                                          height: 48,
+                                          decoration: BoxDecoration(
+                                            color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.1),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Icon(Icons.person, size: 28, color: isDark ? Colors.white : Colors.black),
+                                        ),
+                                        errorWidget: Container(
+                                          width: 48,
+                                          height: 48,
+                                          decoration: BoxDecoration(
+                                            color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.1),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Icon(Icons.person, size: 28, color: isDark ? Colors.white : Colors.black),
+                                        ),
+                                      ),
+                                    )
+                                  : Container(
+                                      width: 48,
+                                      height: 48,
+                                      decoration: BoxDecoration(
+                                        color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.1),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(Icons.person, size: 28, color: isDark ? Colors.white : Colors.black),
+                                    ),
+                            ),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (isPremium)
+                                    Row(
+                                      children: [
+                                        Text(
+                                          'premium'.tr(),
+                                          style: TextStyle(
+                                            color: colors['text'],
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                        Icon(Icons.star, color: Color(0xFFFFD700), size: 16), // Gold color
+                                      ],
+                                    ),
+                                  Text(
+                                    userName,
+                                    style: TextStyle(
+                                      color: colors['text'],
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 20,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // Notification icon
+                            IconButton(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (context) => NotificationsScreen()),
+                                );
+                              },
+                              icon: Icon(
+                                Icons.notifications_outlined,
+                                color: colors['icon'],
+                                size: 28,
+                              ),
                             ),
                           ],
                         ),
@@ -469,34 +600,53 @@ class DashboardScreenState extends State<DashboardScreen> {
                     },
                   ),
                 if (!isAuthenticated)
-                  Padding(
+                  Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.transparent,
+                    ),
                     child: Row(
                       children: [
-                        Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[100],
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(Icons.person, size: 28, color: Colors.grey[300]),
-                        ),
-                        SizedBox(width: 12),
-                        Text('Explorer', style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 20)),
-                        Spacer(),
-                        IconButton(
-                          icon: Icon(Icons.menu, color: textColor),
-                          onPressed: () {
+                        GestureDetector(
+                          onTap: () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(builder: (context) => LoginScreen()),
                             );
                           },
+                          child: Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(Icons.person, size: 28, color: isDark ? Colors.white : Colors.black),
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Text('Explorer', style: TextStyle(color: colors['text'], fontWeight: FontWeight.bold, fontSize: 20)),
+                        ),
+                        // Notification icon
+                        IconButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => NotificationsScreen()),
+                            );
+                          },
+                          icon: Icon(
+                            Icons.notifications_outlined,
+                            color: colors['icon'],
+                            size: 28,
+                          ),
                         ),
                       ],
                     ),
                   ),
+                // Add space before Welcome Section (date picker, macro cards, etc.)
+                SizedBox(height: 16),
                 // Welcome Section (date picker, macro cards, etc.)
                 WelcomeSection(
                   userName: 'Explorer',
@@ -520,64 +670,66 @@ class DashboardScreenState extends State<DashboardScreen> {
                 // Meal Analysis Section (example, replace with your logic)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: _isMealsLoading
-                      ? Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 24.0, horizontal: 0.0),
-                          child: LinearProgressIndicator(
-                            minHeight: 6,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
-                            backgroundColor: Colors.white,
-                          ),
-                        )
-                      : MealHistory(
-                          meals: _filteredMeals,
-                          onRefresh: refreshDashboard,
-                          onDelete: (mealId) async {
-                            try {
-                              final user = FirebaseAuth.instance.currentUser;
-                              if (user != null) {
-                                // User is authenticated - delete from Firebase
-                                await FirebaseFirestore.instance
-                                    .collection('analyzed_meals')
-                                    .doc(mealId)
-                                    .delete();
-                                print('✅ Deleted meal from Firebase: $mealId');
-                              } else {
-                                // User is not authenticated - delete from local storage
-                                await Meal.deleteFromLocalStorage(mealId);
-                                print('✅ Deleted meal from local storage: $mealId');
-                                
-                                // For testing: Reset free scan availability when last meal is deleted
-                                final remainingMeals = await Meal.loadFromLocalStorage();
-                                if (remainingMeals.isEmpty) {
-                                  print('🔄 All meals deleted - free scan is now available again');
-                                }
-                              }
-                              await loadMealsFromFirebase();
-                            } catch (e) {
-                              print('❌ Error deleting meal: $e');
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Failed to delete meal')),
-                              );
-                            }
-                          },
-                          updateMeals: (meals) {
-                            setState(() { _meals = meals; });
-                          },
-                        ),
+                  child: MealHistory(
+                    meals: _filteredMeals,
+                    onRefresh: refreshDashboard,
+                    onDelete: (mealId) async {
+                      try {
+                        final user = FirebaseAuth.instance.currentUser;
+                        if (user != null) {
+                          // User is authenticated - delete from Firebase
+                          await FirebaseFirestore.instance
+                              .collection('analyzed_meals')
+                              .doc(mealId)
+                              .delete();
+                          print('✅ Deleted meal from Firebase: $mealId');
+                        } else {
+                          // User is not authenticated - delete from local storage
+                          await Meal.deleteFromLocalStorage(mealId);
+                          print('✅ Deleted meal from local storage: $mealId');
+                          
+                          // For testing: Reset free scan availability when last meal is deleted
+                          final remainingMeals = await Meal.loadFromLocalStorage();
+                          if (remainingMeals.isEmpty) {
+                            print('🔄 All meals deleted - free scan is now available again');
+                          }
+                        }
+                        await loadMealsFromFirebase();
+                      } catch (e) {
+                        print('❌ Error deleting meal: $e');
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Failed to delete meal')),
+                        );
+                      }
+                    },
+                    updateMeals: (meals) {
+                      setState(() { _meals = meals; });
+                    },
+                  ),
                 ),
-                // Spacer for bottom nav bar
-                SizedBox(height: 80),
+                // Spacer for floating action button
+                SizedBox(height: 24),
               ],
             ),
           ),
         ),
       ),
-      bottomNavigationBar: CustomBottomNavBar(
-        currentIndex: _selectedIndex,
-        onTabChanged: _onItemTapped,
-        dashboardKey: globalDashboardKey,
+      floatingActionButton: FloatingActionButton(
+        onPressed: _isAnalyzing() ? null : () {
+          _handleCameraAction();
+        },
+        backgroundColor: _isAnalyzing() 
+            ? Colors.grey 
+            : (isDark ? Colors.white : Colors.black),
+        child: Icon(
+          Icons.add,
+          color: _isAnalyzing() 
+              ? Colors.white 
+              : (isDark ? Colors.black : Colors.white),
+          size: 28,
+        ),
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 } 
