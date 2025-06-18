@@ -50,28 +50,17 @@ Future<void> analyzeImageFile({
       final imageUrl = await UploadService.uploadImageWithRetry(imageFile);
       print('✅ Image uploaded: $imageUrl');
       
-      // Step 2: Analyze with OpenAI using base64 first (bypass URL issues)
-      print('🤖 Analyzing with OpenAI using base64...');
+      // Step 2: Analyze with OpenAI (will use URL if available, otherwise base64)
       final imageName = imageFile.path.split('/').last;
       
-      Map<String, dynamic> rawAnalysisResult;
-      try {
-        // Try base64 approach first
-        rawAnalysisResult = await OpenAIService.analyzeMealImageBase64WithRetry(
-          imageFile: imageFile,
-          imageName: imageName,
-        );
-        print('✅ OpenAI base64 analysis completed');
-      } catch (base64Error) {
-        print('❌ Base64 analysis failed, trying URL fallback: $base64Error');
-        // Fallback to URL approach
-        rawAnalysisResult = await OpenAIService.analyzeMealImageWithRetry(
-          imageUrl: imageUrl,
-          imageName: imageName,
-          imageFile: imageFile, // Pass the image file for base64 fallback
-        );
-        print('✅ OpenAI URL analysis completed');
-      }
+      // Step 2: Analyze with OpenAI (single function handles both URL and base64)
+      print('🤖 Analyzing with OpenAI...');
+      final rawAnalysisResult = await OpenAIService.analyzeMealImage(
+        imageUrl: imageUrl,
+        imageFile: imageFile,
+        imageName: imageName,
+      );
+      print('✅ OpenAI analysis completed');
       
       // Step 3: Parse and validate results
       print('🔍 Parsing results...');

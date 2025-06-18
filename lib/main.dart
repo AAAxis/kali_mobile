@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'services/paywall_service.dart';
 import 'services/image_cache_service.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'splash/splash_screen.dart';
 import 'app_theme.dart';
 import 'dart:io';
@@ -36,14 +35,6 @@ void main() async {
   
   // Initialize image cache service
   await ImageCacheService.initialize();
-  
-  // Load environment variables
-  try {
-    await dotenv.load(fileName: ".env");
-    print('✅ Environment variables loaded successfully');
-  } catch (e) {
-    print('⚠️  Warning: Could not load .env file: $e');
-  }
   
   // Initialize Firebase with the generated options
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);

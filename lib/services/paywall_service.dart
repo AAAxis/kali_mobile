@@ -3,34 +3,33 @@ import 'package:flutter/services.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:purchases_ui_flutter/purchases_ui_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
 
 // RevenueCat Configuration
 class RevenueCatConfig {
-  //TO DO: add the entitlement ID from the RevenueCat dashboard that is activated upon successful in-app purchase for the duration of the purchase.
-  static String get entitlementID => dotenv.env['ENTITLEMENT_ID'] ?? 'Premium';
+  // Entitlement ID from the RevenueCat dashboard that is activated upon successful in-app purchase
+  static const String entitlementID = 'Premium';
 
-  // Your configured offering ID from RevenueCat dashboard
-  static String get defaultOfferingId => dotenv.env['DEFAULT_OFFERING_ID'] ?? 'Sale';
-  static String get discountOfferingId => dotenv.env['DISCOUNT_OFFERING_ID'] ?? 'Offer';
+  // Your configured offering IDs from RevenueCat dashboard
+  static const String defaultOfferingId = 'Sale';
+  static const String discountOfferingId = 'Offer';
 
-  //TO DO: add your subscription terms and conditions
+  // Subscription terms and conditions
   static const footerText =
       """Don't forget to add your subscription terms and conditions. 
 
 Read more about this here: https://www.revenuecat.com/blog/schedule-2-section-3-8-b""";
 
-  //TO DO: add the Apple API key for your app from the RevenueCat dashboard: https://app.revenuecat.com
-  static String get appleApiKey => dotenv.env['REVENUECAT_APPLE_API_KEY'] ?? '';
+  // Apple API key for your app from the RevenueCat dashboard: https://app.revenuecat.com
+  static const String appleApiKey = 'appl_tcPOzrHZKuYPAreNJQMnNOuhVYa';
 
-  //TO DO: add the Google API key for your app from the RevenueCat dashboard: https://app.revenuecat.com
-  static String get googleApiKey => dotenv.env['REVENUECAT_GOOGLE_API_KEY'] ?? '';
+  // Google API key for your app from the RevenueCat dashboard: https://app.revenuecat.com
+  static const String googleApiKey = 'goog_xrdRhQMmrFhWRVAsIHLBBnSiIfZ';
 
-  //TO DO: add the Amazon API key for your app from the RevenueCat dashboard: https://app.revenuecat.com
-  static String get amazonApiKey => dotenv.env['REVENUECAT_AMAZON_API_KEY'] ?? '';
+  // Amazon API key for your app from the RevenueCat dashboard: https://app.revenuecat.com
+  static const String amazonApiKey = '';
 }
 
 // App Data Singleton for managing subscription state

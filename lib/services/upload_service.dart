@@ -1,48 +1,53 @@
 import 'dart:io';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
+import 'package:path/path.dart' as path;
 
 class UploadService {
-  static const String _baseUrl = 'https://api.theholylabs.com';
+  static final FirebaseStorage _storage = FirebaseStorage.instance;
   
-  /// Upload an image file to the backend
+  /// Upload an image file to Firebase Storage
   static Future<String> uploadImage(File imageFile) async {
     try {
-      print('📤 Starting image upload...');
+      print('📤 Starting image upload to Firebase Storage...');
       
-      final uri = Uri.parse('$_baseUrl/upload');
-      final request = http.MultipartRequest('POST', uri);
+      // Generate a unique filename
+      final String fileName = '${DateTime.now().millisecondsSinceEpoch}_${path.basename(imageFile.path)}';
+      final String filePath = 'images/$fileName';
       
-      // Add the image file to the request
-      final multipartFile = await http.MultipartFile.fromPath(
-        'file',
-        imageFile.path,
+      print('📤 Uploading to path: $filePath');
+      
+      // Create a reference to the file location in Firebase Storage
+      final Reference storageRef = _storage.ref().child(filePath);
+      
+      // Set metadata (optional)
+      final SettableMetadata metadata = SettableMetadata(
+        contentType: 'image/jpeg',
+        customMetadata: {
+          'uploaded_at': DateTime.now().toIso8601String(),
+        },
       );
-      request.files.add(multipartFile);
       
-      print('📤 Sending upload request to: $uri');
+      // Upload the file
+      final UploadTask uploadTask = storageRef.putFile(imageFile, metadata);
       
-      // Send the request
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
+      // Monitor upload progress (optional)
+      uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
+        final double progress = snapshot.bytesTransferred / snapshot.totalBytes;
+        print('📤 Upload progress: ${(progress * 100).toStringAsFixed(1)}%');
+      });
       
-      print('📤 Upload response status: ${response.statusCode}');
-      print('📤 Upload response body: ${response.body}');
+      // Wait for upload to complete
+      final TaskSnapshot snapshot = await uploadTask;
       
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
-        final fileUrl = responseData['file_url'] as String;
-        print('✅ Image uploaded successfully: $fileUrl');
-        return fileUrl;
-      } else {
-        final errorMessage = 'Upload failed with status: ${response.statusCode}';
-        print('❌ $errorMessage');
-        throw Exception(errorMessage);
-      }
+      // Get the download URL
+      final String downloadUrl = await snapshot.ref.getDownloadURL();
+      
+      print('✅ Image uploaded successfully to Firebase Storage: $downloadUrl');
+      return downloadUrl;
       
     } catch (e) {
-      print('❌ Error uploading image: $e');
+      print('❌ Error uploading image to Firebase Storage: $e');
       rethrow;
     }
   }
@@ -69,5 +74,50 @@ class UploadService {
     }
     
     throw Exception('Upload failed after $maxRetries attempts');
+  }
+
+  /// Delete an image from Firebase Storage using its URL
+  static Future<void> deleteImage(String downloadUrl) async {
+    try {
+      print('🗑️ Deleting image from Firebase Storage...');
+      
+      // Get reference from download URL
+      final Reference ref = _storage.refFromURL(downloadUrl);
+      
+      // Delete the file
+      await ref.delete();
+      
+      print('✅ Image deleted successfully from Firebase Storage');
+    } catch (e) {
+      print('❌ Error deleting image from Firebase Storage: $e');
+      rethrow;
+    }
+  }
+
+  /// Get metadata for an uploaded image
+  static Future<FullMetadata> getImageMetadata(String downloadUrl) async {
+    try {
+      final Reference ref = _storage.refFromURL(downloadUrl);
+      return await ref.getMetadata();
+    } catch (e) {
+      print('❌ Error getting image metadata: $e');
+      rethrow;
+    }
+  }
+
+  /// Upload multiple images in parallel
+  static Future<List<String>> uploadMultipleImages(List<File> imageFiles) async {
+    try {
+      print('📤 Starting upload of ${imageFiles.length} images...');
+      
+      final List<Future<String>> uploadFutures = imageFiles.map((file) => uploadImage(file)).toList();
+      final List<String> downloadUrls = await Future.wait(uploadFutures);
+      
+      print('✅ All ${imageFiles.length} images uploaded successfully');
+      return downloadUrls;
+    } catch (e) {
+      print('❌ Error uploading multiple images: $e');
+      rethrow;
+    }
   }
 } 

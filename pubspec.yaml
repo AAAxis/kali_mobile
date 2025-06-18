@@ -31,7 +31,6 @@ dependencies:
   flutter:
     sdk: flutter
   easy_localization: ^3.0.3
-  flutter_dotenv: ^5.1.0
 
   # UI Components
   cupertino_icons: ^1.0.8
@@ -116,7 +115,6 @@ flutter:
     - images/
     - assets/
     - assets/translations/
-    - .env
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
