@@ -61,49 +61,190 @@ def compress_image_for_api(image_bytes, max_size_kb=400, quality=85):
 def get_analysis_prompt():
     """Get the enhanced analysis prompt for meal image analysis"""
     return """
-Analyze this meal image and provide detailed nutritional information in JSON format with the following structure:
+           As a professional nutritionist, analyze the provided food image and return accurate nutritional data in strict JSON format.
 
-{
-  "mealName": {
-    "en": "English meal name",
-    "ru": "Russian meal name",
-    "he": "Hebrew meal name"
-  },
-  "calories": number (estimated total calories),
-  "macros": {
-    "proteins": number (grams),
-    "carbs": number (grams), 
-    "fats": number (grams)
-  },
-  "ingredients": {
-    "en": ["ingredient1", "ingredient2", ...],
-    "ru": ["ингредиент1", "ингредиент2", ...],
-    "he": ["רכיב1", "רכיב2", ...]
-  },
-  "nutrients": {
-    "fiber": number (grams),
-    "sugar": number (grams),
-    "sodium": number (mg),
-    "potassium": number (mg),
-    "vitamin_c": number (mg),
-    "calcium": number (mg),
-    "iron": number (mg)
-  },
-  "healthiness": "healthy|medium|unhealthy",
-  "healthiness_explanation": {
-    "en": "English explanation",
-    "ru": "Russian explanation", 
-    "he": "Hebrew explanation"
-  },
-  "portion_size": "small|medium|large",
-  "meal_type": "breakfast|lunch|dinner|snack",
-  "cooking_method": "grilled|fried|baked|raw|steamed|etc",
-  "allergens": ["gluten", "dairy", "nuts", "etc"],
-  "dietary_tags": ["vegetarian", "vegan", "keto", "low-carb", "etc"]
-}
+          ANALYSIS INSTRUCTIONS:
 
-Provide accurate nutritional estimates based on visible ingredients and portion sizes. Be as detailed and accurate as possible. Make sure to provide translations in Hebrew (he), English (en), and Russian (ru) for all multilingual fields.
-"""
+          1. IDENTIFY ALL VISIBLE ITEMS:
+             - Include partially hidden items, sauces, and items extending beyond the frame
+             - Identify the likely cuisine type (e.g., Mediterranean, Asian, American)
+             - Account for perspective distortion and lighting variations when estimating size/quantity
+
+          2. ESTIMATE QUANTITIES (WITH IMAGE GEOMETRY AND CAMERA ANGLE):
+              - Use known reference objects in the image (e.g. standard fork ≈ 18cm, plate ≈ 27cm diameter) to scale food items
+              - Adjust estimates based on camera angle:
+                 * If taken from top-down (90°) – use area coverage on plate for volume approximation
+                 * If taken from ~45° – apply foreshortening correction to infer height/depth
+                 * If taken from low angle (<30°) – estimate vertical volume more accurately but adjust for occlusion
+              - Document:
+                 * Apparent scaling ratios
+                 * Any overlap, stacking, or visual distortion that affects estimation
+              - Provide comparison-based estimates such as:
+                 * "Meat portion ≈ 2× fork length in width, 1× in thickness"
+                 * "Rice occupies ⅓ of the plate area, thickness ~1.5 cm"
+
+          3. PROVIDE COMPLETE NUTRITIONAL BREAKDOWN:
+             - Calculate: proteins, carbohydrates, fats in grams
+             - Sum total calories: (proteins × 4) + (carbs × 4) + (fats × 9)
+             - Include likely ingredients used in preparation (oils, spices) when evident
+             - Use USDA FoodData Central or equivalent databases
+
+          4. DOCUMENT ALL ASSUMPTIONS:
+             - Size comparisons used
+             - Inferences based on shape, shadow, overlap
+             - Perspective adjustments made
+             - Preparation method assumptions
+
+          Return output in this JSON format:
+
+          {
+           "mealName": {
+              "en": "English meal name",
+              "ru": "Russian meal name",
+              "he": "Hebrew meal name"
+            },
+            "calories": number (estimated total calories),
+
+            "meal_name": "Descriptive name of the combined meal",
+
+            "cuisine_type": "Mediterranean",
+            "macronutrients": {
+              "proteins": "40g",
+              "carbohydrates": "50g",
+              "fats": "30g"
+            },
+            "macros": {
+               "proteins": number (grams),
+               "carbs": number (grams),
+               "fats": number (grams)
+             },
+            "estimated_weight": "500g",
+            "weight_estimation_details": [
+              "Grilled chicken breast × 200g = 200g",
+              "Quinoa salad × 300g = 300g"
+            ],
+            "ingredients": {
+               "en": ["ingredient1", "ingredient2", ...],
+               "ru": ["ингредиент1", "ингредиент2", ...],
+               "he": ["רכיב1", "רכיב2", ...]
+             },
+            "ingredients_multilingual": {
+              "en": ["chicken breast", "quinoa", "tomatoes", "olive oil", "lemon"],
+              "ru": ["куриная грудка", "киноа", "помидоры", "оливковое масло", "лимон"],
+              "he": ["חזה עוף", "קינואה", "עגבניות", "שמן זית", "לימון"]
+            },
+            "nutrients": {
+                "fiber": number (grams),
+                "sugar": number (grams),
+                "sodium": number (mg),
+                "potassium": number (mg),
+                "vitamin_c": number (mg),
+                "calcium": number (mg),
+                "iron": number (mg)
+              },
+            "cooking_state": "cooked",
+ "cooking_method": "grilled|fried|baked|raw|steamed|etc",
+            "category": "meat (poultry)",
+            "category_cause": "Contains chicken breast",
+            "assumptions": [
+              "Olive oil used for grilling",
+              "Portion sizes estimated based on plate size"
+            ],
+            "portion_size": "small|medium|large",
+             "meal_type": "breakfast|lunch|dinner|snack",
+ "allergens": ["gluten", "dairy", "nuts", "etc"],
+
+              "dietary_tags": ["vegetarian", "vegan", "keto", "low-carb","high-protein", "gluten-free", "etc"]
+
+            "part_identification_confidence": {
+              "chicken breast": "95%",
+              "quinoa": "85%"
+            },
+            "health_assessment": "healthy",
+
+             "healthiness": "healthy|medium|unhealthy",
+             "healthiness_explanation": {
+               "en": "English explanation ex: This meal contains lean protein, whole grains, and vegetables with healthy fats",
+               "ru": "Russian explanation",
+               "he": "Hebrew explanation"
+             },
+
+
+            "source": "USDA FoodData Central",
+            "confidence_level": "high",
+            "macronutrients_by_ingredient": {
+              "chicken breast": {
+                "proteins": "31g",
+                "carbohydrates": "0g",
+                "fats": "3.6g",
+                "calories": "165"
+              },
+              "quinoa": {
+                "proteins": "8g",
+                "carbohydrates": "39g",
+                "fats": "3.5g",
+                "calories": "222"
+              }
+            },
+            "judge": {
+              "final_meal_name": "Grilled Chicken with Quinoa Salad",
+              "estimated_total_calories": 650,
+              "total_macronutrients": {
+                "protein_grams": 40,
+                "fat_grams": 30,
+                "carbohydrate_grams": 50
+              },
+              "final_ingredients_list": [
+                "chicken breast",
+                "quinoa",
+                "tomatoes",
+                "olive oil",
+                "lemon"
+              ],
+              "final_assumptions": [
+                "Grilled with 1 tbsp olive oil",
+                "Salad is not dressed with sugar-based dressing"
+              ],
+              "cooking_state": "cooked",
+              "category": "meat (poultry)",
+              "category_cause": "Dominant ingredient is grilled chicken",
+              "source": "USDA FoodData Central",
+              "judge_estimation_calories": {
+                "total_estimated_calories": 650,
+                "ingredient_breakdown": [
+                  {
+                    "ingredient": "chicken breast",
+                    "estimated_weight_grams": 200,
+                    "estimated_kcal_per_gram": 0.83,
+                    "estimated_calories": 165,
+                    "weight_estimation_steps": ["1 medium fillet × 200g = 200g"],
+                    "macronutrients": {
+                      "protein_grams": 31,
+                      "fat_grams": 3.6,
+                      "carbohydrate_grams": 0
+                    }
+                  },
+                  {
+                    "ingredient": "quinoa",
+                    "estimated_weight_grams": 300,
+                    "estimated_kcal_per_gram": 0.74,
+                    "estimated_calories": 222,
+                    "weight_estimation_steps": ["1.5 cup cooked quinoa = 300g"],
+                    "macronutrients": {
+                      "protein_grams": 8,
+                      "fat_grams": 3.5,
+                      "carbohydrate_grams": 39
+                    }
+                  }
+                ],
+                "calculation_method": "Sum of ingredients based on standard kcal/g values"
+              }
+            }
+          }
+
+          Provide accurate nutritional estimates based on visible ingredients and portion sizes. Be as detailed and accurate as possible. Make sure to provide translations in Hebrew (he), English (en), and Russian (ru) for all multilingual fields.
+          """
+
 
 def analyze_image_with_openai(image_url=None, image_base64=None, prompt=None):
     """
