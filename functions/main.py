@@ -243,23 +243,26 @@ def get_analysis_prompt():
           }
 
           Provide accurate nutritional estimates based on visible ingredients and portion sizes. Be as detailed and accurate as possible. Make sure to provide translations in Hebrew (he), English (en), and Russian (ru) for all multilingual fields.
+
+            🚩 Return only a valid JSON block.
+            🚩 Do not include markdown, explanations, or additional text.
+            🚩 This is your final expert-level output for visual nutritional analysis.
           """
 
+import os
+import json
+import requests
 
 def analyze_image_with_openai(image_url=None, image_base64=None, prompt=None):
     """
-    Analyze an image using OpenAI's Vision capabilities
+    Analyze an image using OpenAI or Gemini Vision capabilities via OpenRouter.
+    Requires either `image_url` or `image_base64`.
     """
     try:
         api_key = os.environ.get("OPENAI_API_KEY")
         if not api_key:
-            raise Exception("OpenAI API key not configured")
-        
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}"
-        }
-        
+            raise Exception("OpenRouter API key not configured")
+
         # Prepare image content
         if image_url:
             image_content = {"type": "image_url", "image_url": {"url": image_url}}
@@ -267,51 +270,78 @@ def analyze_image_with_openai(image_url=None, image_base64=None, prompt=None):
             image_content = {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}}
         else:
             raise Exception("Either image_url or image_base64 must be provided")
-        
+
+        content = []
+
+        if prompt:
+            content.append({
+                "type": "text",
+                "text": prompt
+            })
+
+        content.append(image_content)
+
+        # Prepare the request payload
         payload = {
-            "model": "gpt-4o-mini",
+            "model": "google/gemini-2.5-flash-preview",
             "messages": [
                 {
                     "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt or get_analysis_prompt()},
-                        image_content
-                    ]
+                    "content": content
                 }
             ],
-            "max_tokens": 1500,
-            "response_format": {"type": "json_object"}
+            "temperature": 0,
+            "response_format": "json"
         }
-        
-        print(f"🤖 Making OpenAI API request...")
-        response = requests.post("https://api.openai.com/v1/chat/completions", 
-                               headers=headers, 
-                               json=payload,
-                               timeout=60)
-        
-        print(f"🤖 OpenAI API response status: {response.status_code}")
-        
+
+        print("🤖 Making OpenRouter API request...")
+
+        try:
+            response = requests.post(
+                'https://openrouter.ai/api/v1/chat/completions',
+                headers={
+                    'Authorization': f'Bearer {api_key}',
+                    'Content-Type': 'application/json'
+                },
+                json=payload,
+                timeout=60
+            )
+        except Exception as e:
+            print(f"❌ Error in API call: {str(e)}")
+            return {"error": str(e)}
+
+        print(f"🤖 OpenRouter API response status: {response.status_code}")
+
         if response.status_code == 200:
             result = response.json()
             content = result['choices'][0]['message']['content']
-            
+
+
+            # 🔧 Clean up markdown wrapping
+            if content.startswith("```json"):
+                import re
+                content = re.sub(r"^```json\s*|\s*```$", "", content.strip())
+            elif content.startswith("```"):
+                content = re.sub(r"^```\s*|\s*```$", "", content.strip())
+
             try:
                 analysis_result = json.loads(content)
-                print(f"✅ Successfully parsed OpenAI response")
+                print("✅ Successfully parsed OpenAI response")
                 return analysis_result
             except json.JSONDecodeError as e:
-                print(f"❌ Error parsing OpenAI JSON response: {e}")
+                print(f"❌ Error parsing JSON: {e}")
                 print(f"Raw content: {content}")
-                return {"error": "Failed to parse OpenAI response as JSON", "raw_content": content}
+                return {"error": "Invalid JSON format", "raw_content": content}
         else:
-            error_msg = f"OpenAI API error: {response.status_code} - {response.text}"
+            error_msg = f"OpenRouter API error: {response.status_code} - {response.text}"
             print(f"❌ {error_msg}")
             return {"error": error_msg}
-            
+
     except Exception as e:
-        error_msg = f"Error calling OpenAI API: {str(e)}"
-        print(f"❌ {error_msg}")
+        error_msg = f"❌ Fatal error: {str(e)}"
+        print(error_msg)
         return {"error": error_msg}
+
 
 @https_fn.on_request()
 def analyze_meal_image(req: https_fn.Request) -> https_fn.Response:
