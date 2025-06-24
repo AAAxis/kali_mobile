@@ -6,12 +6,12 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
+
 import 'ingridients_edit.dart';
 import 'nutrition_edit_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../meal_analysis.dart';
-import '../services/image_cache_service.dart';
+
 
 class AnalysisDetailsScreen extends StatefulWidget {
   final String analysisId;
@@ -636,25 +636,30 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
                 color: Colors.grey[800],
               ),
               child: _analysisData?['imageUrl'] != null
-                  ? ImageCacheService.getCachedImage(
+                  ? Image.network(
                       _analysisData!['imageUrl'],
                       fit: BoxFit.cover,
                       width: double.infinity,
-                      placeholder: Container(
-                        color: Colors.grey[800],
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Container(
+                          color: Colors.grey[800],
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
                           ),
-                        ),
-                      ),
-                      errorWidget: Center(
-                        child: Icon(
-                          Icons.restaurant,
-                          size: 50,
-                          color: Colors.grey[600],
-                        ),
-                      ),
+                        );
+                      },
+                      errorBuilder: (context, error, stackTrace) {
+                        return Center(
+                          child: Icon(
+                            Icons.restaurant,
+                            size: 50,
+                            color: Colors.grey[600],
+                          ),
+                        );
+                      },
                     )
                   : Center(
                       child: Icon(
@@ -712,12 +717,12 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
                     children: [
                       // White content section
                       Container(
-                        padding: EdgeInsets.all(20.w),
+                        padding: EdgeInsets.all(20),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.only(
-                            topLeft: Radius.circular(30.r),
-                            topRight: Radius.circular(30.r),
+                            topLeft: Radius.circular(30),
+                            topRight: Radius.circular(30),
                           ),
                         ),
                         child: Column(
@@ -729,7 +734,7 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
                               child: Text(
                                 mealName,
                                 style: TextStyle(
-                                  fontSize: 32.sp,
+                                  fontSize: 32,
                                   fontWeight: FontWeight.w800,
                                   color: Colors.black,
                                 ),
@@ -748,7 +753,7 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
                                     Text(
                                       '${(_analysisData?['calories'] ?? 0.0).toStringAsFixed(0)} calories',
                                       style: TextStyle(
-                                        fontSize: 24.sp,
+                                        fontSize: 24,
                                         color: Colors.black,
                                         fontWeight: FontWeight.w700,
                                       ),
@@ -762,7 +767,7 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
                                         TextSpan(
                                           text: 'Rich in\n',
                                           style: TextStyle(
-                                            fontSize: 17.sp,
+                                            fontSize: 17,
                                             color: Colors.grey[700],
                                             fontWeight: FontWeight.w500,
                                           ),
@@ -771,7 +776,7 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
                                           text: _translateValue('benefits', 
                                             List<String>.from(_analysisData?['benefits'] ?? []).first),
                                           style: TextStyle(
-                                            fontSize: 24.sp,
+                                            fontSize: 24,
                                             color: Colors.black,
                                             fontWeight: FontWeight.w700,
                                           ),
@@ -821,7 +826,7 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
                                     _translateValue('healthiness', _analysisData?['healthiness'] ?? 'Unknown'),
                                     style: TextStyle(
                                       fontWeight: FontWeight.w700,
-                                      fontSize: 15.sp,
+                                      fontSize: 15,
                                       color: Colors.black,
                                     ),
                                   ),
@@ -837,7 +842,7 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
                                     TextSpan(
                                       text: 'This meal contains beneficial nutrients that will help you ',
                                       style: TextStyle(
-                                        fontSize: 14.sp,
+                                        fontSize: 14,
                                         color: Colors.grey[700],
                                         height: 1.4,
                                       ),
@@ -845,7 +850,7 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
                                     TextSpan(
                                       text: 'Stay Healthy!',
                                       style: TextStyle(
-                                        fontSize: 14.sp,
+                                        fontSize: 14,
                                         color: Colors.black,
                                         fontWeight: FontWeight.bold,
                                         height: 1.4,
@@ -863,7 +868,7 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
                         child: Container(
                           width: double.infinity,
                           color: Colors.black,
-                          padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
+                          padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                           child: SingleChildScrollView(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -875,7 +880,7 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
                                     Text(
                                       _safeTranslate('details.nutrients', 'Nutrients') + ':',
                                       style: TextStyle(
-                                        fontSize: 16.sp,
+                                        fontSize: 16,
                                         fontWeight: FontWeight.w700,
                                         color: Colors.white,
                                       ),
@@ -892,7 +897,7 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
                                   'Carbs: ${(_analysisData?['macros']?['carbs'] ?? 0.0).toStringAsFixed(1)}g | '
                                   'Fats: ${(_analysisData?['macros']?['fats'] ?? 0.0).toStringAsFixed(1)}g',
                                   style: TextStyle(
-                                    fontSize: 14.sp,
+                                    fontSize: 14,
                                     color: Colors.white70,
                                     height: 1.4,
                                   ),
@@ -906,7 +911,7 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
                                     Text(
                                       _safeTranslate('details.ingredients', 'Ingredients') + ':',
                                       style: TextStyle(
-                                        fontSize: 16.sp,
+                                        fontSize: 16,
                                         fontWeight: FontWeight.w700,
                                         color: Colors.white,
                                       ),
@@ -923,7 +928,7 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
                                     ? ingredients.join(' | ')
                                     : 'No ingredients available',
                                   style: TextStyle(
-                                    fontSize: 14.sp,
+                                    fontSize: 14,
                                     color: Colors.white70,
                                     height: 1.4,
                                   ),
@@ -935,7 +940,7 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
                                   Text(
                                     _safeTranslate('details.source', 'Source') + ':',
                                     style: TextStyle(
-                                      fontSize: 16.sp,
+                                      fontSize: 16,
                                       fontWeight: FontWeight.w700,
                                       color: Colors.white,
                                     ),
@@ -954,7 +959,7 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
                                     child: Text(
                                       _analysisData?['source']?.toString() ?? '',
                                       style: TextStyle(
-                                        fontSize: 14.sp,
+                                        fontSize: 14,
                                         color: _analysisData?['source']?.toString()?.startsWith('http') ?? false
                                             ? Colors.blue[300]
                                             : Colors.white70,

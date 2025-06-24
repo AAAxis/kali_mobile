@@ -12,7 +12,7 @@ import '../widgets/upload_history.dart';
 import 'package:vibration/vibration.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/upload_service.dart';
-import '../services/image_cache_service.dart';
+
 import '../main.dart';
 import 'notifications_screen.dart';
 import '../services/paywall_service.dart';
@@ -515,29 +515,34 @@ class DashboardScreenState extends State<DashboardScreen> {
                               },
                               child: (profileImageUrl != null && profileImageUrl.isNotEmpty)
                                   ? ClipOval(
-                                      child: ImageCacheService.getCachedImage(
+                                      child: Image.network(
                                         profileImageUrl,
                                         width: 48,
                                         height: 48,
                                         fit: BoxFit.cover,
-                                        placeholder: Container(
-                                          width: 48,
-                                          height: 48,
-                                          decoration: BoxDecoration(
-                                            color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.1),
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: Icon(Icons.person, size: 28, color: isDark ? Colors.white : Colors.black),
-                                        ),
-                                        errorWidget: Container(
-                                          width: 48,
-                                          height: 48,
-                                          decoration: BoxDecoration(
-                                            color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.1),
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: Icon(Icons.person, size: 28, color: isDark ? Colors.white : Colors.black),
-                                        ),
+                                        loadingBuilder: (context, child, loadingProgress) {
+                                          if (loadingProgress == null) return child;
+                                          return Container(
+                                            width: 48,
+                                            height: 48,
+                                            decoration: BoxDecoration(
+                                              color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.1),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: Icon(Icons.person, size: 28, color: isDark ? Colors.white : Colors.black),
+                                          );
+                                        },
+                                        errorBuilder: (context, error, stackTrace) {
+                                          return Container(
+                                            width: 48,
+                                            height: 48,
+                                            decoration: BoxDecoration(
+                                              color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.1),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: Icon(Icons.person, size: 28, color: isDark ? Colors.white : Colors.black),
+                                          );
+                                        },
                                       ),
                                     )
                                   : Container(

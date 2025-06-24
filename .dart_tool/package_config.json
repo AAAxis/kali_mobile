@@ -314,12 +314,6 @@
       "languageVersion": "3.7"
     },
     {
-      "name": "flutter_dotenv",
-      "rootUri": "file:///Users/admin/.pub-cache/hosted/pub.dev/flutter_dotenv-5.2.1",
-      "packageUri": "lib/",
-      "languageVersion": "2.12"
-    },
-    {
       "name": "flutter_image_compress",
       "rootUri": "file:///Users/admin/.pub-cache/hosted/pub.dev/flutter_image_compress-2.4.0",
       "packageUri": "lib/",
@@ -1043,6 +1037,6 @@
   "generator": "pub",
   "generatorVersion": "3.8.1",
   "flutterRoot": "file:///Users/admin/Documents/flutter",
-  "flutterVersion": "3.32.1",
+  "flutterVersion": "3.32.4",
   "pubCache": "file:///Users/admin/.pub-cache"
 }

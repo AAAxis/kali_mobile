@@ -21,7 +21,6 @@
         "firebase_storage",
         "fl_chart",
         "flutter",
-        "flutter_dotenv",
         "flutter_image_compress",
         "flutter_local_notifications",
         "flutter_screenutil",
@@ -495,13 +494,6 @@
       "name": "cupertino_icons",
       "version": "1.0.8",
       "dependencies": []
-    },
-    {
-      "name": "flutter_dotenv",
-      "version": "5.2.1",
-      "dependencies": [
-        "flutter"
-      ]
     },
     {
       "name": "easy_localization",

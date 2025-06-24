@@ -283,15 +283,24 @@ def analyze_image_with_openai(image_url=None, image_base64=None, prompt=None):
 
         # Prepare the request payload
         payload = {
+<<<<<<< Updated upstream
             "model": "google/gemini-2.5-flash-preview",
+=======
+            "model": "gpt-4-vision-preview",
+>>>>>>> Stashed changes
             "messages": [
                 {
                     "role": "user",
                     "content": content
                 }
             ],
+<<<<<<< Updated upstream
             "temperature": 0,
             "response_format": "json"
+=======
+            "max_tokens": 4096,
+            "response_format": {"type": "json_object"}
+>>>>>>> Stashed changes
         }
 
         print("🤖 Making OpenRouter API request...")

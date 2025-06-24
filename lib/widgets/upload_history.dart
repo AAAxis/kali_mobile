@@ -5,7 +5,7 @@ import 'dart:io';
 import '../dashboard/dashboard.dart';
 import '../meal_analysis.dart';
 import 'package:image_picker/image_picker.dart';
-import '../services/image_cache_service.dart';
+
 
 class MealHistory extends StatefulWidget {
   final List<Meal> meals;
@@ -74,27 +74,50 @@ class _MealHistoryState extends State<MealHistory> {
 
   // Helper method to build meal image widget based on URL type
   Widget _buildMealImage(String imageUrl) {
-    return ImageCacheService.getCachedImage(
-      imageUrl,
-      fit: BoxFit.cover,
-      placeholder: Container(
-        color: Colors.grey[100],
-        child: Center(
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            valueColor: AlwaysStoppedAnimation<Color>(Colors.grey),
-          ),
-        ),
-      ),
-      errorWidget: Container(
-        color: Colors.grey[200],
-        child: const Icon(
-          Icons.broken_image,
-          color: Colors.grey,
-          size: 32,
-        ),
-      ),
-    );
+    if (imageUrl.startsWith('http')) {
+      return Image.network(
+        imageUrl,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Container(
+            color: Colors.grey[100],
+            child: Center(
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.grey),
+              ),
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            color: Colors.grey[200],
+            child: const Icon(
+              Icons.broken_image,
+              color: Colors.grey,
+              size: 32,
+            ),
+          );
+        },
+      );
+    } else {
+      // For local files
+      return Image.file(
+        File(imageUrl),
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            color: Colors.grey[200],
+            child: const Icon(
+              Icons.broken_image,
+              color: Colors.grey,
+              size: 32,
+            ),
+          );
+        },
+      );
+    }
   }
 
   @override
@@ -185,33 +208,57 @@ class _MealHistoryState extends State<MealHistory> {
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(16),
                                 child: meal.imageUrl != null
-                                    ? ImageCacheService.getCachedImage(
-                                        meal.imageUrl!,
-                                        width: 120,
-                                        height: 120,
-                                        fit: BoxFit.cover,
-                                        placeholder: Container(
-                                          width: 120,
-                                          height: 120,
-                                          color: Colors.grey[100],
-                                          child: Center(
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              valueColor: AlwaysStoppedAnimation<Color>(Colors.grey),
-                                            ),
-                                          ),
-                                        ),
-                                        errorWidget: Container(
-                                          width: 120,
-                                          height: 120,
-                                          color: Colors.grey[200],
-                                          child: const Icon(
-                                            Icons.photo,
-                                            color: Colors.grey,
-                                            size: 32,
-                                          ),
-                                        ),
-                                      )
+                                    ? (meal.imageUrl!.startsWith('http')
+                                        ? Image.network(
+                                            meal.imageUrl!,
+                                            width: 120,
+                                            height: 120,
+                                            fit: BoxFit.cover,
+                                            loadingBuilder: (context, child, loadingProgress) {
+                                              if (loadingProgress == null) return child;
+                                              return Container(
+                                                width: 120,
+                                                height: 120,
+                                                color: Colors.grey[100],
+                                                child: Center(
+                                                  child: CircularProgressIndicator(
+                                                    strokeWidth: 2,
+                                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.grey),
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                            errorBuilder: (context, error, stackTrace) {
+                                              return Container(
+                                                width: 120,
+                                                height: 120,
+                                                color: Colors.grey[200],
+                                                child: const Icon(
+                                                  Icons.photo,
+                                                  color: Colors.grey,
+                                                  size: 32,
+                                                ),
+                                              );
+                                            },
+                                          )
+                                        : Image.file(
+                                            File(meal.imageUrl!),
+                                            width: 120,
+                                            height: 120,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (context, error, stackTrace) {
+                                              return Container(
+                                                width: 120,
+                                                height: 120,
+                                                color: Colors.grey[200],
+                                                child: const Icon(
+                                                  Icons.photo,
+                                                  color: Colors.grey,
+                                                  size: 32,
+                                                ),
+                                              );
+                                            },
+                                          ))
                                     : Container(
                                         width: 120,
                                         height: 120,
@@ -269,40 +316,67 @@ class _MealHistoryState extends State<MealHistory> {
                           leading: meal.imageUrl != null
                               ? ClipRRect(
                                   borderRadius: BorderRadius.circular(16),
-                                  child: ImageCacheService.getCachedImage(
-                                    meal.imageUrl!,
-                                    width: 64,
-                                    height: 64,
-                                    fit: BoxFit.cover,
-                                    placeholder: Container(
-                                      width: 64,
-                                      height: 64,
-                                      color: Colors.grey[100],
-                                      child: Center(
-                                        child: SizedBox(
-                                          width: 20,
-                                          height: 20,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.grey),
-                                          ),
+                                  child: meal.imageUrl!.startsWith('http')
+                                      ? Image.network(
+                                          meal.imageUrl!,
+                                          width: 64,
+                                          height: 64,
+                                          fit: BoxFit.cover,
+                                          loadingBuilder: (context, child, loadingProgress) {
+                                            if (loadingProgress == null) return child;
+                                            return Container(
+                                              width: 64,
+                                              height: 64,
+                                              color: Colors.grey[100],
+                                              child: Center(
+                                                child: SizedBox(
+                                                  width: 20,
+                                                  height: 20,
+                                                  child: CircularProgressIndicator(
+                                                    strokeWidth: 2,
+                                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.grey),
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                          errorBuilder: (context, error, stackTrace) {
+                                            return Container(
+                                              width: 64,
+                                              height: 64,
+                                              decoration: BoxDecoration(
+                                                borderRadius: BorderRadius.circular(16),
+                                                color: Colors.grey[200],
+                                              ),
+                                              child: const Icon(
+                                                Icons.photo,
+                                                color: Colors.grey,
+                                                size: 32,
+                                              ),
+                                            );
+                                          },
+                                        )
+                                      : Image.file(
+                                          File(meal.imageUrl!),
+                                          width: 64,
+                                          height: 64,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) {
+                                            return Container(
+                                              width: 64,
+                                              height: 64,
+                                              decoration: BoxDecoration(
+                                                borderRadius: BorderRadius.circular(16),
+                                                color: Colors.grey[200],
+                                              ),
+                                              child: const Icon(
+                                                Icons.photo,
+                                                color: Colors.grey,
+                                                size: 32,
+                                              ),
+                                            );
+                                          },
                                         ),
-                                      ),
-                                    ),
-                                    errorWidget: Container(
-                                      width: 64,
-                                      height: 64,
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(16),
-                                        color: Colors.grey[200],
-                                      ),
-                                      child: const Icon(
-                                        Icons.photo,
-                                        color: Colors.grey,
-                                        size: 32,
-                                      ),
-                                    ),
-                                  ),
                                 )
                               : Container(
                                   width: 64,
