@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/intl.dart';
-import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:easy_localization/easy_localization.dart';
 
 import 'ingridients_edit.dart';
-import 'nutrition_edit_screen.dart';
+import 'nutrition_edit.dart';
+import 'meal_nutrition_edit.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../meal_analysis.dart';
+import '../models/meal_model.dart';
+import '../services/nutrition_database_service.dart';
+import '../services/translation_service.dart';
+import '../services/image_cache_service.dart';
 
 
 class AnalysisDetailsScreen extends StatefulWidget {
@@ -97,11 +100,50 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
   @override
   void initState() {
     super.initState();
+    _initializeServices();
     _loadAnalysisFromLocal().then((_) {
-      _fetchAnalysisDetails().then((_) {
-        _loadNotes(); // Load notes after analysis data is fetched
-      });
+      // Only fetch from network if we don't have cached data
+      if (_analysisData == null) {
+        _fetchAnalysisDetails().then((_) {
+                  _loadNotes(); // Load notes after analysis data is fetched
+        _preloadImage(); // Preload image for better caching
+        });
+      } else {
+        // We have cached data, just load notes and preload image
+        _loadNotes();
+        _preloadImage();
+        // Try to fetch fresh data in background without showing loading
+        _fetchAnalysisDetails();
+      }
     });
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
+  Future<void> _initializeServices() async {
+    await ImageCacheService.initialize();
+  }
+
+  Future<void> _preloadImage() async {
+    if (_analysisData?['imageUrl'] != null) {
+      final imageUrl = _analysisData!['imageUrl'] as String;
+      if (imageUrl.isNotEmpty) {
+        // Check if image is already cached, if not, trigger download
+        final isInMemory = ImageCacheService.getFromMemoryCache(imageUrl) != null;
+        final isInDisk = await ImageCacheService.isInDiskCache(imageUrl);
+        
+        if (!isInMemory && !isInDisk) {
+          print('🔄 Preloading image for faster display: $imageUrl');
+          // This will trigger the download and cache the image
+          ImageCacheService.getCachedImage(imageUrl);
+        } else {
+          print('✅ Image already cached: $imageUrl');
+        }
+      }
+    }
   }
 
   Future<void> _loadAnalysisFromLocal() async {
@@ -111,7 +153,7 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
       if (cached != null) {
         setState(() {
           _analysisData = json.decode(cached);
-          _isLoading = false;
+          _isLoading = false; // Stop loading if we have cached data
         });
       }
     } catch (e) {
@@ -122,15 +164,38 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
   Future<void> _saveAnalysisToLocal(Map<String, dynamic> data) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('analysis_${widget.analysisId}', json.encode(data));
+      // Convert all Timestamp objects to strings before encoding
+      final cleanedData = _convertTimestampsToStrings(data);
+      await prefs.setString('analysis_${widget.analysisId}', json.encode(cleanedData));
     } catch (e) {
       print('Error saving analysis to local: $e');
+      print('Analysis data in UI: ${data.keys.join(', ')}');
+    }
+  }
+
+  /// Recursively convert all Timestamp objects to ISO8601 strings
+  dynamic _convertTimestampsToStrings(dynamic data) {
+    if (data is Timestamp) {
+      return data.toDate().toIso8601String();
+    } else if (data is Map<String, dynamic>) {
+      final Map<String, dynamic> result = {};
+      data.forEach((key, value) {
+        result[key] = _convertTimestampsToStrings(value);
+      });
+      return result;
+    } else if (data is List) {
+      return data.map((item) => _convertTimestampsToStrings(item)).toList();
+    } else {
+      return data;
     }
   }
 
   Future<void> _fetchAnalysisDetails() async {
     try {
-      setState(() => _isLoading = true);
+      // Only show loading if we don't have any data yet
+      if (_analysisData == null) {
+        setState(() => _isLoading = true);
+      }
       final user = FirebaseAuth.instance.currentUser;
       
       if (user != null) {
@@ -145,12 +210,6 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
           final data = doc.data()!;
           print("✅ Firebase data loaded: $data");
 
-          // Convert Timestamp to ISO8601 string before saving to local
-          if (data['timestamp'] != null && data['timestamp'] is Timestamp) {
-            data['timestamp'] =
-                (data['timestamp'] as Timestamp).toDate().toIso8601String();
-          }
-
           setState(() {
             _analysisData = data;
             _isLoading = false;
@@ -163,10 +222,15 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
       // User is not authenticated or meal not found in Firebase - try local storage
       print('📱 Loading meal details from local storage');
       final localMeals = await Meal.loadFromLocalStorage();
-      final localMeal = localMeals.firstWhere(
+      final localMealIndex = localMeals.indexWhere(
         (meal) => meal.id == widget.analysisId,
-        orElse: () => throw Exception('Meal not found in local storage'),
       );
+      
+      if (localMealIndex == -1) {
+        throw Exception('Meal not found in local storage');
+      }
+      
+      final localMeal = localMeals[localMealIndex];
       
       // Convert Meal to analysis data format
       final data = localMeal.toJson();
@@ -324,13 +388,13 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
 
       // Try exact match first
       if (translationMap.containsKey(lowercaseValue)) {
-        return _safeTranslate(translationMap[lowercaseValue]!, value);
+        return translationMap[lowercaseValue]!.tr();
       }
 
       // If no exact match, try partial matches
       for (var entry in translationMap.entries) {
         if (lowercaseValue.contains(entry.key)) {
-          return _safeTranslate(entry.value, value);
+          return entry.value.tr();
         }
       }
     }
@@ -341,6 +405,7 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
 
   void _showEditNameDialog() {
     final locale = Localizations.localeOf(context).languageCode;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     String currentName = 'Unknown';
     if (_analysisData?['mealName'] is Map) {
       currentName = _analysisData?['mealName'][locale] ?? _analysisData?['mealName']['en'] ?? 'Unknown';
@@ -353,15 +418,51 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
       context: context,
       builder:
           (context) => AlertDialog(
-            title: Text(_safeTranslate('details.edit_name', 'Edit Name')),
+            backgroundColor: isDark ? Colors.grey[800] : Colors.white,
+            title: Text(
+              'details.edit_name'.tr(),
+              style: TextStyle(
+                color: isDark ? Colors.white : Colors.black,
+              ),
+            ),
             content: TextField(
               controller: nameController,
-              decoration: InputDecoration(labelText: _safeTranslate('details.meal_name', 'Meal Name')),
+              style: TextStyle(
+                color: isDark ? Colors.white : Colors.black,
+              ),
+              decoration: InputDecoration(
+                labelText: 'details.meal_name'.tr(),
+                labelStyle: TextStyle(
+                  color: isDark ? Colors.white70 : Colors.black54,
+                ),
+                border: OutlineInputBorder(
+                  borderSide: BorderSide(
+                    color: isDark ? Colors.white54 : Colors.black54,
+                  ),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(
+                    color: isDark ? Colors.white54 : Colors.black54,
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                filled: true,
+                fillColor: isDark ? Colors.grey[700] : Colors.grey[50],
+              ),
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: Text(_safeTranslate('dashboard.cancel', 'Cancel')),
+                child: Text(
+                  'common.cancel'.tr(),
+                  style: TextStyle(
+                    color: isDark ? Colors.white70 : Colors.black54,
+                  ),
+                ),
               ),
               TextButton(
                 onPressed: () async {
@@ -382,7 +483,13 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
                     if (mounted) Navigator.pop(context);
                   }
                 },
-                child: Text(_safeTranslate('dashboard.save', 'Save')),
+                child: Text(
+                  'common.save'.tr(),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ],
           ),
@@ -424,6 +531,9 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
         }
         if (updatedData.containsKey('ingredients')) {
           firestoreData['ingredients'] = updatedData['ingredients'];
+        }
+        if (updatedData.containsKey('detailedIngredients')) {
+          firestoreData['detailedIngredients'] = updatedData['detailedIngredients'];
         }
         if (updatedData.containsKey('nutrients')) {
           firestoreData['nutrients'] = updatedData['nutrients'];
@@ -475,14 +585,14 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Meal details updated successfully')),
+          SnackBar(content: Text('details.meal_updated'.tr())),
         );
       }
     } catch (e) {
       print('❌ Error updating meal: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update meal: ${e.toString()}')),
+          SnackBar(content: Text('${'details.update_error'.tr()}: ${e.toString()}')),
         );
       }
     }
@@ -491,42 +601,106 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
   // Add method to edit ingredients
   Future<void> _editIngredients() async {
     if (_analysisData == null) return;
-    // Only edit the current language's list if ingredients is a map
-    final String currentLocale = Localizations.localeOf(context).languageCode;
-    List<String> currentIngredients = [];
-    if (_analysisData?['ingredients'] is Map) {
-      final Map<String, dynamic> ingMap = Map<String, dynamic>.from(_analysisData?['ingredients']);
-      currentIngredients = List<String>.from(
-        ingMap[currentLocale] ?? ingMap['en'] ?? [],
-      );
-    } else if (_analysisData?['ingredients'] is List) {
-      currentIngredients = List<String>.from(_analysisData?['ingredients'] ?? []);
+    
+    // Get current detailed ingredients or convert from legacy format
+    List<Ingredient> currentDetailedIngredients = [];
+    
+    if (_analysisData?['detailedIngredients'] is List) {
+      // Use existing detailed ingredients
+      currentDetailedIngredients = (_analysisData!['detailedIngredients'] as List)
+          .map((item) => Ingredient.fromJson(item as Map<String, dynamic>))
+          .toList();
+    } else {
+      // Convert legacy ingredients to detailed format with estimated nutrition
+      final String currentLocale = Localizations.localeOf(context).languageCode;
+      List<String> legacyIngredients = [];
+      
+      if (_analysisData?['ingredients'] is Map) {
+        final Map<String, dynamic> ingMap = Map<String, dynamic>.from(_analysisData?['ingredients']);
+        legacyIngredients = List<String>.from(
+          ingMap[currentLocale] ?? ingMap['en'] ?? [],
+        );
+      } else if (_analysisData?['ingredients'] is List) {
+        legacyIngredients = List<String>.from(_analysisData?['ingredients'] ?? []);
+      }
+      
+      // Convert to detailed ingredients using nutrition database
+      final totalCalories = (_analysisData?['calories'] ?? 0.0).toDouble();
+      final totalProteins = (_analysisData?['macros']?['proteins'] ?? 0.0).toDouble();
+      final totalCarbs = (_analysisData?['macros']?['carbs'] ?? 0.0).toDouble();
+      final totalFats = (_analysisData?['macros']?['fats'] ?? 0.0).toDouble();
+      
+      final ingredientCount = legacyIngredients.length;
+      if (ingredientCount > 0) {
+        // Initialize nutrition database
+        await NutritionDatabaseService.initialize();
+        
+        currentDetailedIngredients = legacyIngredients.map((name) {
+          // Try to get nutrition from database, otherwise use averages
+          final nutrition = NutritionDatabaseService.calculateNutrition(name, 100.0);
+          
+          // If database has good data, use it; otherwise distribute evenly
+          if (nutrition['calories']! > 0) {
+            return Ingredient(
+              name: name,
+              grams: 100.0,
+              calories: nutrition['calories']!,
+              proteins: nutrition['proteins']!,
+              carbs: nutrition['carbs']!,
+              fats: nutrition['fats']!,
+            );
+          } else {
+            // Fallback to even distribution
+            return Ingredient(
+              name: name,
+              grams: 100.0,
+              calories: totalCalories / ingredientCount,
+              proteins: totalProteins / ingredientCount,
+              carbs: totalCarbs / ingredientCount,
+              fats: totalFats / ingredientCount,
+            );
+          }
+        }).toList();
+      }
     }
 
-    final updatedIngredients = await Navigator.push<List<String>>(
+    final updatedIngredients = await Navigator.push<List<Ingredient>>(
       context,
       MaterialPageRoute(
         builder: (context) => IngredientsEditScreen(
-          ingredients: currentIngredients,
+          detailedIngredients: currentDetailedIngredients,
           mealId: widget.analysisId,
-          language: currentLocale,
+          language: Localizations.localeOf(context).languageCode,
         ),
       ),
     );
 
     if (updatedIngredients != null) {
-      setState(() {
-        if (_analysisData != null) {
-          if (_analysisData!['ingredients'] is Map) {
-            final Map<String, dynamic> ingMap = Map<String, dynamic>.from(_analysisData!['ingredients']);
-            ingMap[currentLocale] = updatedIngredients;
-            _analysisData!['ingredients'] = ingMap;
-          } else {
-            _analysisData!['ingredients'] = updatedIngredients;
-          }
-        }
-      });
-      await _saveAnalysisToLocal(_analysisData!);
+      // Calculate new nutrition totals from ingredients
+      double newCalories = 0.0;
+      double newProteins = 0.0;
+      double newCarbs = 0.0;
+      double newFats = 0.0;
+      
+      for (final ingredient in updatedIngredients) {
+        newCalories += ingredient.calories;
+        newProteins += ingredient.proteins;
+        newCarbs += ingredient.carbs;
+        newFats += ingredient.fats;
+      }
+      
+      // Update the analysis data with new nutrition values
+      final updatedData = {
+        'detailedIngredients': updatedIngredients.map((i) => i.toJson()).toList(),
+        'calories': newCalories,
+        'macros': {
+          'proteins': newProteins,
+          'carbs': newCarbs,
+          'fats': newFats,
+        },
+      };
+      
+      await _updateMealDetails(updatedData);
     }
   }
   
@@ -539,14 +713,24 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
     final carbs = (_analysisData?['macros']?['carbs'] ?? 0.0).toDouble();
     final fats = (_analysisData?['macros']?['fats'] ?? 0.0).toDouble();
     
+    // Get meal name for display
+    final locale = Localizations.localeOf(context).languageCode;
+    String mealName = 'Unknown';
+    if (_analysisData?['mealName'] is Map) {
+      mealName = _analysisData?['mealName']['en'] ?? _analysisData?['name'] ?? 'Unknown';
+    } else {
+      mealName = _analysisData?['mealName'] ?? _analysisData?['name'] ?? 'Unknown';
+    }
+    
     final result = await Navigator.push<Map<String, dynamic>>(
       context,
       MaterialPageRoute(
-        builder: (context) => NutritionEditScreen(
+        builder: (context) => MealNutritionEditScreen(
           initialCalories: calories,
           initialProteins: proteins,
           initialCarbs: carbs,
           initialFats: fats,
+          mealName: mealName,
         ),
       ),
     );
@@ -577,26 +761,51 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
       word.isEmpty ? '' : word[0].toUpperCase() + word.substring(1)).join(' ');
   }
 
+
+
+
+
+
+
   @override
   Widget build(BuildContext context) {
     // Debug print for analysis data
     print('Analysis data in UI: ${_analysisData?.keys}');
 
     final locale = Localizations.localeOf(context).languageCode;
-    final mealName =
-        (_analysisData?['mealName'] is Map)
-            ? (_analysisData?['mealName'][locale] ?? _analysisData?['mealName']['en'] ?? 'Unknown')
-            : (_analysisData?['name'] ?? _analysisData?['mealName'] ?? 'Unknown');
-    // Multilingual ingredients support
-    List<String> ingredients = [];
-    if (_analysisData?['ingredients'] is Map) {
-      final Map<String, dynamic> ingMap = Map<String, dynamic>.from(_analysisData?['ingredients']);
-      ingredients = List<String>.from(
-        ingMap[locale] ?? ingMap['en'] ?? [],
-      );
-    } else if (_analysisData?['ingredients'] is List) {
-      ingredients = List<String>.from(_analysisData?['ingredients'] ?? []);
+    
+    // Get English meal name and translate on frontend
+    String englishMealName;
+    if (_analysisData?['mealName'] is Map) {
+      // Handle old multilingual format (backward compatibility)
+      englishMealName = _analysisData?['mealName']['en'] ?? _analysisData?['name'] ?? 'Unknown';
+    } else {
+      // Handle new English-only format
+      englishMealName = _analysisData?['mealName'] ?? _analysisData?['name'] ?? 'Unknown';
     }
+    
+    // Translate meal name on frontend
+    final mealName = (locale == 'en') 
+        ? englishMealName 
+        : TranslationService.translateIngredientStatic(englishMealName, locale);
+    
+    // Get English ingredients and translate on frontend
+    List<String> englishIngredients = [];
+    if (_analysisData?['ingredients'] is Map) {
+      // Handle old multilingual format (backward compatibility)
+      final Map<String, dynamic> ingMap = Map<String, dynamic>.from(_analysisData?['ingredients']);
+      englishIngredients = List<String>.from(ingMap['en'] ?? []);
+    } else if (_analysisData?['ingredients'] is List) {
+      // Handle new English-only format
+      englishIngredients = List<String>.from(_analysisData?['ingredients'] ?? []);
+    }
+    
+    // Translate ingredients on frontend
+    final ingredients = (locale == 'en') 
+        ? englishIngredients 
+        : englishIngredients.map((ingredient) => 
+            TranslationService.translateIngredientStatic(ingredient, locale)
+          ).toList();
 
     if (_isLoading) {
       return Scaffold(
@@ -623,111 +832,91 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
 
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          // Main image - covers entire screen including status bar
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              height: MediaQuery.of(context).size.height * 0.4,
+      body: CustomScrollView(
+        physics: ClampingScrollPhysics(), // Prevent over-scrolling
+        slivers: [
+          // Image header that can scroll away
+          SliverAppBar(
+            expandedHeight: MediaQuery.of(context).size.height * 0.4,
+            floating: false,
+            pinned: false,
+            backgroundColor: Colors.transparent,
+            leading: Container(
+              margin: EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.grey[800],
+                color: Colors.black.withOpacity(0.3),
+                shape: BoxShape.circle,
               ),
-              child: _analysisData?['imageUrl'] != null
-                  ? Image.network(
-                      _analysisData!['imageUrl'],
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return Container(
+              child: IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+            actions: [
+              Container(
+                margin: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.3),
+                  shape: BoxShape.circle,
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.edit, color: Colors.white),
+                  onPressed: _showEditNameDialog,
+                ),
+              ),
+            ],
+            flexibleSpace: FlexibleSpaceBar(
+              background: Container(
+                decoration: BoxDecoration(
+                  color: Colors.grey[800],
+                ),
+                child: _analysisData?['imageUrl'] != null
+                    ? ImageCacheService.getCachedImage(
+                        _analysisData!['imageUrl'],
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        placeholder: Container(
                           color: Colors.grey[800],
                           child: Center(
-                            child: CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            child: Icon(
+                              Icons.restaurant,
+                              size: 50,
+                              color: Colors.grey[600],
                             ),
                           ),
-                        );
-                      },
-                      errorBuilder: (context, error, stackTrace) {
-                        return Center(
+                        ),
+                        errorWidget: Center(
                           child: Icon(
                             Icons.restaurant,
                             size: 50,
                             color: Colors.grey[600],
                           ),
-                        );
-                      },
-                    )
-                  : Center(
-                      child: Icon(
-                        Icons.restaurant,
-                        size: 50,
-                        color: Colors.grey[600],
+                        ),
+                      )
+                    : Center(
+                        child: Icon(
+                          Icons.restaurant,
+                          size: 50,
+                          color: Colors.grey[600],
+                        ),
                       ),
-                    ),
+              ),
             ),
           ),
-
-          // SafeArea for buttons and content
-          SafeArea(
-            child: Stack(
+          
+          // Main content
+          SliverToBoxAdapter(
+            child: Column(
               children: [
-                // Back Button
-                Positioned(
-                  top: 16,
-                  left: 16,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.3),
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Colors.white),
-                      onPressed: () => Navigator.pop(context),
-                    ),
+                // White content section
+                Container(
+                  padding: EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
                   ),
-                ),
-
-                // Edit Button
-                Positioned(
-                  top: 16,
-                  right: 16,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.3),
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.edit, color: Colors.white),
-                      onPressed: _showEditNameDialog,
-                    ),
-                  ),
-                ),
-
-                // Main Content positioned relative to SafeArea
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  top: MediaQuery.of(context).size.height * 0.35 - MediaQuery.of(context).padding.top,
-                  child: Column(
-                    children: [
-                      // White content section
-                      Container(
-                        padding: EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.only(
-                            topLeft: Radius.circular(30),
-                            topRight: Radius.circular(30),
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                             // Meal Name
                             GestureDetector(
                               onTap: _showEditNameDialog,
@@ -748,10 +937,14 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
                               children: [
                                 Row(
                                   children: [
-                                    Icon(Icons.local_fire_department, color: Colors.orange, size: 24),
+                                    Icon(
+                                      Icons.local_fire_department, 
+                                      color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
+                                      size: 24
+                                    ),
                                     const SizedBox(width: 6),
                                     Text(
-                                      '${(_analysisData?['calories'] ?? 0.0).toStringAsFixed(0)} calories',
+                                      '${(_analysisData?['calories'] ?? 0.0).toStringAsFixed(0)} ${'common.calories'.tr()}',
                                       style: TextStyle(
                                         fontSize: 24,
                                         color: Colors.black,
@@ -765,7 +958,7 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
                                     TextSpan(
                                       children: [
                                         TextSpan(
-                                          text: 'Rich in\n',
+                                          text: '${'details.rich_in'.tr()}\n',
                                           style: TextStyle(
                                             fontSize: 17,
                                             color: Colors.grey[700],
@@ -794,19 +987,19 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
                               mainAxisAlignment: MainAxisAlignment.spaceAround,
                               children: [
                                 _buildNutrientItem(
-                                  _safeTranslate('details.protein', 'Protein'),
+                                  'common.protein'.tr(),
                                   '${(_analysisData?['macros']?['proteins'] ?? 0.0).toStringAsFixed(0)}g',
-                                  'assets/Protein.png',
+                                  'images/meat.png',
                                 ),
                                 _buildNutrientItem(
-                                  _safeTranslate('details.carbs', 'Carbs'),
+                                  'common.carbs'.tr(),
                                   '${(_analysisData?['macros']?['carbs'] ?? 0.0).toStringAsFixed(0)}g',
-                                  'assets/Carb.png',
+                                  'images/carbs.png',
                                 ),
                                 _buildNutrientItem(
-                                  _safeTranslate('details.fats', 'Fats'),
+                                  'common.fats'.tr(),
                                   '${(_analysisData?['macros']?['fats'] ?? 0.0).toStringAsFixed(0)}g',
-                                  'assets/Fat.png',
+                                  'images/fats.png',
                                 ),
                               ],
                             ),
@@ -840,7 +1033,7 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
                                 TextSpan(
                                   children: [
                                     TextSpan(
-                                      text: 'This meal contains beneficial nutrients that will help you ',
+                                      text: '${'details.meal_contains_nutrients'.tr()} ',
                                       style: TextStyle(
                                         fontSize: 14,
                                         color: Colors.grey[700],
@@ -848,7 +1041,7 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
                                       ),
                                     ),
                                     TextSpan(
-                                      text: 'Stay Healthy!',
+                                      text: 'details.stay_healthy'.tr(),
                                       style: TextStyle(
                                         fontSize: 14,
                                         color: Colors.black,
@@ -859,26 +1052,24 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
                                   ],
                                 ),
                               ),
-                          ],
-                        ),
-                      ),
+                    ],
+                  ),
+                ),
 
-                      // Black section for ingredients and nutrients
-                      Expanded(
-                        child: Container(
-                          width: double.infinity,
-                          color: Colors.black,
-                          padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                          child: SingleChildScrollView(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
+                // Black section for ingredients and nutrients
+                Container(
+                  width: double.infinity,
+                  color: Colors.black,
+                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                                 // Nutrients Section
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(
-                                      _safeTranslate('details.nutrients', 'Nutrients') + ':',
+                                      '${'details.nutrients'.tr()}:',
                                       style: TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.w700,
@@ -893,9 +1084,9 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  'Protein: ${(_analysisData?['macros']?['proteins'] ?? 0.0).toStringAsFixed(1)}g | '
-                                  'Carbs: ${(_analysisData?['macros']?['carbs'] ?? 0.0).toStringAsFixed(1)}g | '
-                                  'Fats: ${(_analysisData?['macros']?['fats'] ?? 0.0).toStringAsFixed(1)}g',
+                                  '${'common.protein'.tr()}: ${(_analysisData?['macros']?['proteins'] ?? 0.0).toStringAsFixed(1)}g | '
+                                  '${'common.carbs'.tr()}: ${(_analysisData?['macros']?['carbs'] ?? 0.0).toStringAsFixed(1)}g | '
+                                  '${'common.fats'.tr()}: ${(_analysisData?['macros']?['fats'] ?? 0.0).toStringAsFixed(1)}g',
                                   style: TextStyle(
                                     fontSize: 14,
                                     color: Colors.white70,
@@ -909,7 +1100,7 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(
-                                      _safeTranslate('details.ingredients', 'Ingredients') + ':',
+                                      '${'details.ingredients'.tr()}:',
                                       style: TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.w700,
@@ -926,7 +1117,7 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
                                 Text(
                                   ingredients.isNotEmpty 
                                     ? ingredients.join(' | ')
-                                    : 'No ingredients available',
+                                    : 'details.no_ingredients'.tr(),
                                   style: TextStyle(
                                     fontSize: 14,
                                     color: Colors.white70,
@@ -938,7 +1129,7 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
                                 if (_analysisData?['source'] != null) ...[
                                   const SizedBox(height: 16),
                                   Text(
-                                    _safeTranslate('details.source', 'Source') + ':',
+                                    '${'details.source'.tr()}:',
                                     style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w700,
@@ -967,12 +1158,10 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
                                       ),
                                     ),
                                   ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
+                      ],
+                      
+                      // Bottom padding to ensure content is fully visible and account for safe area
+                      SizedBox(height: 100 + MediaQuery.of(context).padding.bottom),
                     ],
                   ),
                 ),
@@ -988,13 +1177,27 @@ class _AnalysisDetailsScreenState extends State<AnalysisDetailsScreen> {
     return Column(
       children: [
         if (imagePath != null)
-          Image.asset(
-            imagePath,
-            width: 28,
-            height: 28,
-            errorBuilder: (context, error, stackTrace) => 
-              Icon(Icons.restaurant, size: 28, color: Colors.grey[600]),
-          )
+          imagePath.contains('meat.png')
+            ? ColorFiltered(
+                colorFilter: ColorFilter.mode(
+                  Colors.blue[400]!,
+                  BlendMode.srcIn,
+                ),
+                child: Image.asset(
+                  imagePath,
+                  width: 28,
+                  height: 28,
+                  errorBuilder: (context, error, stackTrace) => 
+                    Icon(Icons.restaurant, size: 28, color: Colors.grey[600]),
+                ),
+              )
+            : Image.asset(
+                imagePath,
+                width: 28,
+                height: 28,
+                errorBuilder: (context, error, stackTrace) => 
+                  Icon(Icons.restaurant, size: 28, color: Colors.grey[600]),
+              )
         else
           Icon(Icons.restaurant, size: 28, color: Colors.grey[600]),
         const SizedBox(height: 4),

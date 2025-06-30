@@ -14,6 +14,7 @@ import 'preparing_screen.dart';
 import 'promocode.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:easy_localization/easy_localization.dart';
+import '../main.dart';
 
 // Model for a wizard step
 class WizardStep {
@@ -157,6 +158,12 @@ class _WizardControllerState extends State<WizardController> {
     if (await Vibration.hasVibrator()) {
       Vibration.vibrate(duration: 30);
     }
+    
+    // If this is the last step (promocode screen), mark wizard as completed
+    if (currentStep == wizardFlow.length - 2) { // -2 because we're about to go to the last step
+      await _markWizardCompleted();
+    }
+    
     if (currentStep < wizardFlow.length - 1) {
       setState(() => currentStep++);
     }
@@ -165,6 +172,28 @@ class _WizardControllerState extends State<WizardController> {
   void previousStep() {
     if (currentStep > 0) {
       setState(() => currentStep--);
+    }
+  }
+
+  Future<void> _markWizardCompleted() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('has_seen_welcome', true);
+      await prefs.setBool('wizard_completed', true);
+      print('✅ Wizard marked as completed - has_seen_welcome set to true');
+    } catch (e) {
+      print('❌ Error marking wizard as completed: $e');
+    }
+  }
+
+  // Method to handle wizard completion from any step
+  Future<void> completeWizard() async {
+    await _markWizardCompleted();
+    // Navigate to main app
+    if (mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => MainTabScreen()),
+      );
     }
   }
 

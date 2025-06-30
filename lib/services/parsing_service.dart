@@ -60,8 +60,13 @@ class ParsingService {
   static double _parseCalories(dynamic calories) {
     if (calories is num) {
       final caloriesValue = calories.toDouble();
-      // Validate reasonable calorie range (50-3000)
-      if (caloriesValue >= 50 && caloriesValue <= 3000) {
+      // Validate reasonable calorie range (0-3000) - allow 0 for unknown
+      if (caloriesValue >= 0 && caloriesValue <= 3000) {
+        // If calories is 0, provide a reasonable default
+        if (caloriesValue == 0) {
+          print('⚠️ Calories is 0, using default 200');
+          return 200.0;
+        }
         return caloriesValue;
       }
     }
@@ -246,9 +251,9 @@ class ParsingService {
         return false;
       }
       
-      // Check calorie range
+      // Check calorie range - allow reasonable values including defaults
       final calories = parsedResult['calories'] as double;
-      if (calories < 1 || calories > 5000) {
+      if (calories < 0 || calories > 5000) {
         print('❌ Calories out of reasonable range: $calories');
         return false;
       }

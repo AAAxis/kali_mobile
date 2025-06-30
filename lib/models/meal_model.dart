@@ -2,6 +2,67 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
+class Ingredient {
+  final String name;
+  final double grams;
+  final double calories;
+  final double proteins;
+  final double carbs;
+  final double fats;
+
+  const Ingredient({
+    required this.name,
+    required this.grams,
+    required this.calories,
+    required this.proteins,
+    required this.carbs,
+    required this.fats,
+  });
+
+  /// Create from JSON
+  factory Ingredient.fromJson(Map<String, dynamic> json) {
+    return Ingredient(
+      name: json['name'] ?? '',
+      grams: (json['grams'] ?? 0).toDouble(),
+      calories: (json['calories'] ?? 0).toDouble(),
+      proteins: (json['proteins'] ?? 0).toDouble(),
+      carbs: (json['carbs'] ?? 0).toDouble(),
+      fats: (json['fats'] ?? 0).toDouble(),
+    );
+  }
+
+  /// Convert to JSON
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'grams': grams,
+      'calories': calories,
+      'proteins': proteins,
+      'carbs': carbs,
+      'fats': fats,
+    };
+  }
+
+  /// Create a copy with updated values
+  Ingredient copyWith({
+    String? name,
+    double? grams,
+    double? calories,
+    double? proteins,
+    double? carbs,
+    double? fats,
+  }) {
+    return Ingredient(
+      name: name ?? this.name,
+      grams: grams ?? this.grams,
+      calories: calories ?? this.calories,
+      proteins: proteins ?? this.proteins,
+      carbs: carbs ?? this.carbs,
+      fats: fats ?? this.fats,
+    );
+  }
+}
+
 class Meal {
   final String id;
   final String? imageUrl;
@@ -9,17 +70,18 @@ class Meal {
   final DateTime timestamp;
   final double calories;
   final Map<String, double> macros;
-  final Map<String, dynamic>? mealName;
+  final dynamic mealName; // Can be String (new format) or Map (old format)
   final String? name; // Fallback for simple string names
-  final Map<String, dynamic>? ingredients;
+  final dynamic ingredients; // Can be List<String> (new format) or Map (old format)
   final Map<String, dynamic>? nutrients;
   final String? healthiness;
-  final Map<String, dynamic>? healthinessExplanation;
+  final dynamic healthinessExplanation; // Can be String (new format) or Map (old format)
   final String? portionSize;
   final String? mealType;
   final String? cookingMethod;
   final List<String>? allergens;
   final List<String>? dietaryTags;
+  final List<Ingredient>? detailedIngredients;
   final bool isFavorite;
   final bool isAnalyzing;
   final bool analysisFailed;
@@ -43,6 +105,7 @@ class Meal {
     this.cookingMethod,
     this.allergens,
     this.dietaryTags,
+    this.detailedIngredients,
     this.isFavorite = false,
     this.isAnalyzing = false,
     this.analysisFailed = false,
@@ -118,6 +181,21 @@ class Meal {
       dietaryTags = List<String>.from(analysisData['dietary_tags']);
     }
 
+    // Extract detailed ingredients
+    List<Ingredient>? detailedIngredients;
+    if (analysisData['detailedIngredients'] is List) {
+      detailedIngredients = (analysisData['detailedIngredients'] as List)
+          .map((item) {
+            if (item is Map<String, dynamic>) {
+              return Ingredient.fromJson(item);
+            }
+            return null;
+          })
+          .where((item) => item != null)
+          .cast<Ingredient>()
+          .toList();
+    }
+
     return Meal(
       id: id,
       imageUrl: imageUrl,
@@ -135,6 +213,7 @@ class Meal {
       cookingMethod: analysisData['cooking_method'],
       allergens: allergens,
       dietaryTags: dietaryTags,
+      detailedIngredients: detailedIngredients,
       userId: userId,
     );
   }
@@ -147,17 +226,18 @@ class Meal {
     DateTime? timestamp,
     double? calories,
     Map<String, double>? macros,
-    Map<String, dynamic>? mealName,
+    dynamic mealName,
     String? name,
-    Map<String, dynamic>? ingredients,
+    dynamic ingredients,
     Map<String, dynamic>? nutrients,
     String? healthiness,
-    Map<String, dynamic>? healthinessExplanation,
+    dynamic healthinessExplanation,
     String? portionSize,
     String? mealType,
     String? cookingMethod,
     List<String>? allergens,
     List<String>? dietaryTags,
+    List<Ingredient>? detailedIngredients,
     bool? isFavorite,
     bool? isAnalyzing,
     bool? analysisFailed,
@@ -181,6 +261,7 @@ class Meal {
       cookingMethod: cookingMethod ?? this.cookingMethod,
       allergens: allergens ?? this.allergens,
       dietaryTags: dietaryTags ?? this.dietaryTags,
+      detailedIngredients: detailedIngredients ?? this.detailedIngredients,
       isFavorite: isFavorite ?? this.isFavorite,
       isAnalyzing: isAnalyzing ?? this.isAnalyzing,
       analysisFailed: analysisFailed ?? this.analysisFailed,
@@ -188,17 +269,41 @@ class Meal {
     );
   }
 
-  /// Get meal name based on locale
+  /// Get meal name based on locale (with frontend translation)
   String getMealName(String locale) {
+    // Handle new format: direct English string
+    if (mealName is String) {
+      final englishName = mealName as String;
+      if (locale == 'en') {
+        return englishName;
+      }
+      // Import will be handled by the calling code to avoid circular dependency
+      // TranslationService.translateText(englishName, locale) should be called by the UI
+      return englishName; // Return English for now, UI will translate
+    }
+    
+    // Handle old format: multilingual map (backward compatibility)
     if (mealName is Map) {
       final nameMap = mealName as Map<String, dynamic>;
       return nameMap[locale] ?? nameMap['en'] ?? name ?? 'Unknown Meal';
     }
+    
     return name ?? 'Unknown Meal';
   }
 
-  /// Get ingredients list based on locale
+  /// Get ingredients list based on locale (with frontend translation)
   List<String> getIngredients(String locale) {
+    // Handle new format: direct English list
+    if (ingredients is List) {
+      final englishIngredients = List<String>.from(ingredients);
+      if (locale == 'en') {
+        return englishIngredients;
+      }
+      // Return English for now, UI will translate using TranslationService
+      return englishIngredients;
+    }
+    
+    // Handle old format: multilingual map (backward compatibility)
     if (ingredients is Map) {
       final ingredientsMap = ingredients as Map<String, dynamic>;
       final localeIngredients = ingredientsMap[locale];
@@ -211,15 +316,28 @@ class Meal {
         return List<String>.from(englishIngredients);
       }
     }
+    
     return [];
   }
 
-  /// Get healthiness explanation based on locale
+  /// Get healthiness explanation based on locale (with frontend translation)
   String getHealthinessExplanation(String locale) {
+    // Handle new format: direct English string
+    if (healthinessExplanation is String) {
+      final englishExplanation = healthinessExplanation as String;
+      if (locale == 'en') {
+        return englishExplanation;
+      }
+      // Return English for now, UI will translate using TranslationService
+      return englishExplanation;
+    }
+    
+    // Handle old format: multilingual map (backward compatibility)
     if (healthinessExplanation is Map) {
       final explanationMap = healthinessExplanation as Map<String, dynamic>;
       return explanationMap[locale] ?? explanationMap['en'] ?? '';
     }
+    
     return '';
   }
 
@@ -243,6 +361,7 @@ class Meal {
       'cooking_method': cookingMethod,
       'allergens': allergens,
       'dietary_tags': dietaryTags,
+      'detailedIngredients': detailedIngredients?.map((i) => i.toJson()).toList(),
       'isFavorite': isFavorite,
       'isAnalyzing': isAnalyzing,
       'analysisFailed': analysisFailed,
@@ -280,6 +399,14 @@ class Meal {
       dietaryTags = List<String>.from(json['dietary_tags']);
     }
 
+    // Parse detailed ingredients
+    List<Ingredient>? detailedIngredients;
+    if (json['detailedIngredients'] is List) {
+      detailedIngredients = (json['detailedIngredients'] as List)
+          .map((item) => Ingredient.fromJson(item as Map<String, dynamic>))
+          .toList();
+    }
+
     return Meal(
       id: json['id'] ?? const Uuid().v4(),
       imageUrl: json['imageUrl'],
@@ -298,6 +425,7 @@ class Meal {
       cookingMethod: json['cooking_method'],
       allergens: allergens,
       dietaryTags: dietaryTags,
+      detailedIngredients: detailedIngredients,
       isFavorite: json['isFavorite'] ?? false,
       isAnalyzing: json['isAnalyzing'] ?? false,
       analysisFailed: json['analysisFailed'] ?? false,
@@ -372,6 +500,18 @@ class Meal {
       print('✅ Added/updated meal ${meal.id} in local storage');
     } catch (e) {
       print('❌ Error adding/updating meal in local storage: $e');
+      rethrow;
+    }
+  }
+
+  /// Clear all meals from local storage
+  static Future<void> clearLocalStorage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('local_meals');
+      print('✅ Cleared all meals from local storage');
+    } catch (e) {
+      print('❌ Error clearing meals from local storage: $e');
       rethrow;
     }
   }

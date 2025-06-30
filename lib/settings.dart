@@ -6,18 +6,20 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'wizard/welcome_screen.dart';
 import 'wizard/wizard_flow.dart';
 import 'user_info.dart';
 import 'services/paywall_service.dart';
-import 'services/image_cache_service.dart';
 import 'main.dart';
+import 'package:provider/provider.dart';
+import 'theme/app_theme.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import '../auth/login.dart';
+import 'auth/auth.dart';
 import '../meal_analysis.dart';
 import 'dashboard/notifications_screen.dart';
 import 'dart:io';
-import 'app_theme.dart';
 
 // Extension must be outside of the class
 extension StringExtension on String {
@@ -62,31 +64,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadThemePreference() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      isDarkTheme = prefs.getBool('isDarkTheme') ?? false;
-    });
+    // Theme is now handled by ThemeNotifier, no need to load separately
+    // The Consumer widget will automatically update when theme changes
   }
 
   Future<void> _toggleTheme(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isDarkTheme', value);
-    
-    // Update global theme notifier for immediate theme change
-    themeNotifier.value = value ? ThemeMode.dark : ThemeMode.light;
-    
-    setState(() {
-      isDarkTheme = value;
-    });
-    
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Theme changed successfully!'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-    }
+    // Use ThemeNotifier instead of manual preference handling
+    Provider.of<ThemeNotifier>(context, listen: false).setTheme(value);
   }
 
   Future<void> loadUserInfo() async {
@@ -252,17 +236,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     // Reset welcome screen flag
     await prefs.setBool('has_seen_welcome', false);
     
-    // Reset theme to light mode for wizard screens
-    await prefs.setBool('isDarkTheme', false);
-    themeNotifier.value = ThemeMode.light;
-    
     // Logout from RevenueCat
     await PaywallService.logoutUser();
     
     await _auth.signOut();
     
     // Clear dashboard meals when logging out
-    globalDashboardKey.currentState?.handleAuthStateChange();
+    await handleDashboardAuthStateChange();
     
     Navigator.pushReplacement(
       context,
@@ -288,28 +268,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Use the saved theme preference instead of Theme.of(context)
-    final colors = AppTheme.getSettingsColors(isDarkTheme);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor = isDark ? Colors.black : Colors.white;
+    final surfaceColor = isDark ? Color(0xFF1E1E1E) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final iconColor = isDark ? Colors.white70 : Colors.grey[600];
+    final subtitleColor = isDark ? Colors.grey[400] : Colors.grey[600];
     
     return Scaffold(
-      backgroundColor: colors['background'],
+      backgroundColor: backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: backgroundColor,
         elevation: 0,
         title: Text(
           'settings.title'.tr(),
-          style: TextStyle(color: colors['text']),
+          style: TextStyle(color: textColor),
         ),
-        iconTheme: IconThemeData(color: colors['icon']),
+        iconTheme: IconThemeData(color: iconColor),
         centerTitle: false,
       ),
       body: Container(
-        color: colors['background'],
+        color: backgroundColor,
         child: ListView(
           children: [
-            Container(
-              margin: const EdgeInsets.symmetric(vertical: 24.0),
-              padding: const EdgeInsets.all(16.0),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24.0),
               child: Center(
                 child: StreamBuilder<DocumentSnapshot>(
                   stream: FirebaseAuth.instance.currentUser != null
@@ -325,6 +308,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         profileImageUrl = data['profileImage'] as String?;
                       }
                     }
+                    final isDark = Theme.of(context).brightness == Brightness.dark;
                     return Column(
                       children: [
                         GestureDetector(
@@ -336,18 +320,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             if (image != null) {
                               try {
                                 setState(() { _isUploadingProfileImage = true; });
-                                // Upload image to Firebase Storage
                                 final storageRef = FirebaseStorage.instance.ref().child('profile_images/${user.uid}.jpg');
                                 await storageRef.putFile(File(image.path));
                                 final url = await storageRef.getDownloadURL();
-                                // Update Firestore user document
                                 await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
                                   'profileImage': url,
                                 }, SetOptions(merge: true));
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(content: Text('Profile image updated!')),
                                 );
-                                setState(() {}); // Refresh UI to show new image
+                                setState(() {}); 
                               } catch (e) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(content: Text('Failed to upload profile image')),
@@ -361,58 +343,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             alignment: Alignment.center,
                             children: [
                               profileImageUrl != null && profileImageUrl.isNotEmpty
-                                ? Container(
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      border: Border.all(color: colors['primary']!, width: 3),
-                                    ),
-                                    child: ClipOval(
-                                      child: ImageCacheService.getCachedImage(
-                                        profileImageUrl,
-                                        width: 80,
-                                        height: 80,
-                                        fit: BoxFit.cover,
-                                        placeholder: Container(
-                                          width: 80,
-                                          height: 80,
-                                          decoration: BoxDecoration(
-                                            color: colors['primary']!.withOpacity(0.1),
-                                            shape: BoxShape.circle,
+                                ? ClipOval(
+                                    child: CachedNetworkImage(
+                                      imageUrl: profileImageUrl,
+                                      width: 80,
+                                      height: 80,
+                                      fit: BoxFit.cover,
+                                      placeholder: (context, url) => CircleAvatar(
+                                        backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
+                                        radius: 40,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          valueColor: AlwaysStoppedAnimation<Color>(
+                                            isDark ? Colors.white : Colors.black,
                                           ),
-                                          child: Center(
-                                            child: CircularProgressIndicator(
-                                              valueColor: AlwaysStoppedAnimation<Color>(colors['primary']!),
-                                              strokeWidth: 2,
-                                            ),
-                                          ),
-                                        ),
-                                        errorWidget: Container(
-                                          width: 80,
-                                          height: 80,
-                                          decoration: BoxDecoration(
-                                            color: colors['primary']!.withOpacity(0.1),
-                                            shape: BoxShape.circle,
-                                            border: Border.all(color: colors['primary']!, width: 3),
-                                          ),
-                                          child: Icon(Icons.person, size: 40, color: colors['primary']),
                                         ),
                                       ),
+                                      errorWidget: (context, url, error) => CircleAvatar(
+                                        backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
+                                        radius: 40,
+                                        child: Icon(Icons.person, size: 40, color: isDark ? Colors.white70 : Colors.grey[400]),
+                                      ),
+                                      cacheKey: profileImageUrl.hashCode.toString(),
+                                      memCacheHeight: 160,
+                                      memCacheWidth: 160,
                                     ),
                                   )
-                                : Container(
-                                    width: 86,
-                                    height: 86,
-                                    decoration: BoxDecoration(
-                                      color: colors['primary']!.withOpacity(0.1),
-                                      shape: BoxShape.circle,
-                                      border: Border.all(color: colors['primary']!, width: 3),
-                                    ),
-                                    child: Icon(Icons.person, size: 40, color: colors['primary']),
+                                : CircleAvatar(
+                                    backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
+                                    radius: 40,
+                                    child: Icon(Icons.person, size: 40, color: isDark ? Colors.white70 : Colors.grey[400]),
                                   ),
                               if (_isUploadingProfileImage)
                                 Container(
-                                  width: 86,
-                                  height: 86,
+                                  width: 80,
+                                  height: 80,
                                   decoration: BoxDecoration(
                                     color: Colors.black45,
                                     shape: BoxShape.circle,
@@ -429,11 +394,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         const SizedBox(height: 12),
                         Text(
                           userName,
-                          style: TextStyle(
-                            fontSize: 20, 
-                            fontWeight: FontWeight.bold,
-                            color: colors['text'],
-                          ),
+                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                         ),
                       ],
                     );
@@ -441,60 +402,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ),
-            // Theme switcher - with custom styling
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              decoration: BoxDecoration(
-                color: colors['surface'],
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: colors['primary']!.withOpacity(0.05),
-                    blurRadius: 4,
-                    offset: Offset(0, 2),
-                  ),
-                ],
+            ListTile(
+              leading: Icon(
+                isDark ? Icons.dark_mode : Icons.light_mode, 
+                color: iconColor,
               ),
-              child: ListTile(
-                leading: Container(
-                  padding: EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: colors['primary']!.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    isDarkTheme ? Icons.dark_mode : Icons.light_mode, 
-                    color: colors['primary'],
-                  ),
-                ),
-                title: Text(
-                  'settings.theme'.tr(),
-                  style: TextStyle(
-                    color: colors['text'],
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                subtitle: Text(
-                  isDarkTheme ? 'settings.theme_dark'.tr() : 'settings.theme_light'.tr(),
-                  style: TextStyle(color: colors['textSecondary']),
-                ),
-                trailing: Switch(
-                  value: isDarkTheme,
-                  onChanged: _toggleTheme,
-                  activeColor: colors['accent'],
-                  activeTrackColor: colors['accent']!.withOpacity(0.5),
-                  inactiveThumbColor: colors['textSecondary'],
-                  inactiveTrackColor: colors['textSecondary']!.withOpacity(0.3),
-                ),
+              title: Text(
+                'settings.theme'.tr(),
+                style: TextStyle(color: textColor),
+              ),
+              subtitle: Text(
+                isDark ? 'settings.theme_dark'.tr() : 'settings.theme_light'.tr(),
+                style: TextStyle(color: subtitleColor),
+              ),
+              trailing: Switch(
+                value: isDark,
+                onChanged: _toggleTheme,
+                activeColor: isDark ? Colors.white : Colors.black,
+                activeTrackColor: isDark ? Colors.white54 : Colors.black54,
+                inactiveThumbColor: isDark ? Colors.white : Colors.black,
+                inactiveTrackColor: isDark ? Colors.white : Colors.black26,
               ),
             ),
             
-            // Settings items with custom styling
-            _buildSettingsItem(
-              context,
-              icon: Icons.person,
-              title: 'settings.my_profile'.tr(),
-              colors: colors,
+            ListTile(
+              leading: Icon(Icons.person, color: iconColor),
+              title: Text(
+                'settings.my_profile'.tr(),
+                style: TextStyle(color: textColor),
+              ),
+              trailing: Icon(Icons.arrow_forward_ios, color: iconColor),
               onTap: () {
                 Navigator.push(
                   context,
@@ -503,109 +440,79 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
 
-            _buildSettingsItem(
-              context,
-              icon: Icons.subscriptions,
-              title: 'settings.subscriptions'.tr(),
-              colors: colors,
+            // Always show subscriptions - trigger paywall if no active subscription
+            ListTile(
+              leading: Icon(Icons.subscriptions, color: iconColor),
+              title: Text(
+                'settings.subscriptions'.tr(),
+                style: TextStyle(color: textColor),
+              ),
+              trailing: Icon(Icons.arrow_forward_ios, color: iconColor),
               onTap: () async {
-                try {
-                  if (Platform.isIOS) {
-                    await launchUrl(
-                      Uri.parse(
-                        'itms-apps://apps.apple.com/account/subscriptions',
-                      ),
-                    );
-                  } else if (Platform.isAndroid) {
-                    await launchUrl(Uri.parse('market://subscriptions'));
+                // Check if user has active subscription
+                final hasActiveSubscription = await PaywallService.hasActiveSubscription();
+                
+                if (hasActiveSubscription) {
+                  // User has active subscription - show system subscription management
+                  try {
+                    if (Platform.isIOS) {
+                      await launchUrl(
+                        Uri.parse(
+                          'itms-apps://apps.apple.com/account/subscriptions',
+                        ),
+                      );
+                    } else if (Platform.isAndroid) {
+                      await launchUrl(Uri.parse('market://subscriptions'));
+                    }
+                  } catch (e) {
+                    print('Error opening subscription settings: $e');
                   }
-                } catch (e) {
-                  print('Error opening subscription settings: $e');
+                } else {
+                  // User doesn't have active subscription - show paywall
+                  final prefs = await SharedPreferences.getInstance();
+                  final hasUsedReferralCode = prefs.getBool('has_used_referral_code') ?? false;
+                  final referralCode = prefs.getString('referral_code') ?? 'none';
+
+                  await PaywallService.showPaywall(
+                    context,
+                    forceCloseOnRestore: true,
+                  );
                 }
               },
             ),
 
-            _buildSettingsItem(
-              context,
-              icon: Icons.language,
-              title: 'settings.language'.tr(),
-              colors: colors,
+            ListTile(
+              leading: Icon(Icons.language, color: iconColor),
+              title: Text(
+                'settings.language'.tr(),
+                style: TextStyle(color: textColor),
+              ),
+              trailing: Icon(Icons.arrow_forward_ios, color: iconColor),
               onTap: () => _showLanguageDialog(context),
             ),
-
-            _buildSettingsItem(
-              context,
-              icon: Icons.privacy_tip,
-              title: 'settings.privacy_policy'.tr(),
-              colors: colors,
+            ListTile(
+              leading: Icon(Icons.privacy_tip, color: iconColor),
+              title: Text(
+                'settings.privacy_policy'.tr(),
+                style: TextStyle(color: textColor),
+              ),
+              trailing: Icon(Icons.arrow_forward_ios, color: iconColor),
               onTap: () async {
                 const url = 'https://theholylabs.com/privacy';
                 await launch(url);
               },
             ),
-
-            _buildSettingsItem(
-              context,
-              icon: Icons.logout,
-              title: 'settings.logout'.tr(),
-              colors: colors,
-              isDestructive: true,
+  
+            ListTile(
+              leading: Icon(Icons.logout, color: Colors.red),
+              title: Text(
+                'settings.logout'.tr(),
+                style: TextStyle(color: Colors.red),
+              ),
               onTap: logout,
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildSettingsItem(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required Map<String, Color> colors,
-    required VoidCallback onTap,
-    bool isDestructive = false,
-  }) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
-        color: colors['surface'],
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: colors['primary']!.withOpacity(0.05),
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: ListTile(
-        leading: Container(
-          padding: EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: isDestructive 
-                ? Colors.red.withOpacity(0.1)
-                : colors['primary']!.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(
-            icon,
-            color: isDestructive ? Colors.red : colors['primary'],
-          ),
-        ),
-        title: Text(
-          title,
-          style: TextStyle(
-            color: isDestructive ? Colors.red : colors['text'],
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        trailing: Icon(
-          Icons.arrow_forward_ios,
-          color: colors['textSecondary'],
-          size: 16,
-        ),
-        onTap: onTap,
       ),
     );
   }
@@ -621,22 +528,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 ListTile(
                   title: Text('settings.english'.tr()),
-                  onTap: () {
-                    context.setLocale(const Locale('en'));
+                  onTap: () async {
+                    await context.setLocale(const Locale('en'));
+                    Navigator.pop(context);
+                    // Pop settings and refresh dashboard
                     Navigator.pop(context);
                   },
                 ),
                 ListTile(
                   title: Text('settings.hebrew'.tr()),
-                  onTap: () {
-                    context.setLocale(const Locale('he'));
+                  onTap: () async {
+                    await context.setLocale(const Locale('he'));
+                    Navigator.pop(context);
+                    // Pop settings and refresh dashboard
                     Navigator.pop(context);
                   },
                 ),
                 ListTile(
                   title: Text('settings.russian'.tr()),
-                  onTap: () {
-                    context.setLocale(const Locale('ru'));
+                  onTap: () async {
+                    await context.setLocale(const Locale('ru'));
+                    Navigator.pop(context);
+                    // Pop settings and refresh dashboard
                     Navigator.pop(context);
                   },
                 ),
@@ -651,18 +564,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder:
           (context) => AlertDialog(
-            title: Text('settings.delete_account'.tr()),
-            content: Text('settings.delete_account_confirm'.tr()),
+            title: const Text('Delete Account'),
+            content: const Text('Are you sure you want to delete your account? This action cannot be undone.'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: Text('dashboard.cancel'.tr()),
+                child: const Text('Cancel'),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: Text(
-                  'settings.delete_account'.tr(),
-                  style: const TextStyle(color: Colors.red),
+                child: const Text(
+                  'Delete',
+                  style: TextStyle(color: Colors.red),
                 ),
               ),
             ],
@@ -673,12 +586,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       try {
         await FirebaseAuth.instance.currentUser?.delete();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('settings.account_deleted'.tr())),
+          const SnackBar(content: Text('Account deleted successfully')),
         );
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('settings.delete_error'.tr(args: [e.toString()])),
+            content: Text('Error deleting account: ${e.toString()}'),
           ),
         );
       }

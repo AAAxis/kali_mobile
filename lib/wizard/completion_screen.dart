@@ -28,7 +28,7 @@ class _CompletionScreenState extends State<CompletionScreen>
     'calories': 2000,
     'protein': 150,
     'carbs': 300,
-    'fat': 65,
+    'fats': 65,
   };
 
   late final AnimationController _controller;
@@ -57,6 +57,8 @@ class _CompletionScreenState extends State<CompletionScreen>
   Future<void> _setWizardCompleted() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('wizard_completed', true);
+    await prefs.setBool('has_seen_welcome', true);
+    print('✅ Wizard completed - both wizard_completed and has_seen_welcome set to true');
   }
 
   Future<void> _vibrateOnComplete() async {
@@ -68,21 +70,55 @@ class _CompletionScreenState extends State<CompletionScreen>
   Future<void> _loadData() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      setState(() {
-        _dailyNeeds = {
-          'calories': prefs.getDouble('daily_calories')?.round() ?? 2000,
-          'protein': prefs.getDouble('daily_protein')?.round() ?? 150,
-          'carbs': prefs.getDouble('daily_carbs')?.round() ?? 300,
-          'fat': prefs.getDouble('daily_fats')?.round() ?? 65,
-        };
-      });
-      print('Local nutrition data loaded:');
-      print('Daily Calories: [36m[1m${_dailyNeeds['calories']}\u001b[0m');
-      print('Protein: [36m[1m${_dailyNeeds['protein']}g\u001b[0m');
-      print('Carbs: [36m[1m${_dailyNeeds['carbs']}g\u001b[0m');
-      print('Fat: [36m[1m${_dailyNeeds['fat']}g\u001b[0m');
+      
+      // Debug logging
+      print('📊 Completion Screen Debug:');
+      print('  - apiResult available: ${widget.apiResult != null}');
+      if (widget.apiResult != null) {
+        print('  - apiResult keys: ${widget.apiResult!.keys.toList()}');
+        print('  - daily_calories: ${widget.apiResult!['daily_calories']}');
+        print('  - protein: ${widget.apiResult!['protein']}');
+        print('  - carbs: ${widget.apiResult!['carbs']}');
+        print('  - fat: ${widget.apiResult!['fat']}');
+      }
+      
+      // First try to use the apiResult if available (from preparing screen)
+      if (widget.apiResult != null) {
+        setState(() {
+          _dailyNeeds = {
+            'calories': (widget.apiResult!['daily_calories'] ?? 2000).round(),
+            'protein': (widget.apiResult!['protein'] ?? 150).round(),
+            'carbs': (widget.apiResult!['carbs'] ?? 300).round(),
+            'fats': (widget.apiResult!['fats'] ?? 65).round(),
+          };
+        });
+        print('✅ Using nutrition data from apiResult:');
+        print('Daily Calories: ${_dailyNeeds['calories']}');
+        print('Protein: ${_dailyNeeds['protein']}g');
+        print('Carbs: ${_dailyNeeds['carbs']}g');
+        print('Fats: ${_dailyNeeds['fats']}g');
+      } else {
+        // Fallback to SharedPreferences
+        setState(() {
+          _dailyNeeds = {
+            'calories': prefs.getDouble('daily_calories')?.round() ?? 
+                       prefs.getDouble('nutrition_goal_calories')?.round() ?? 2000,
+            'protein': prefs.getDouble('daily_protein')?.round() ?? 
+                      prefs.getDouble('nutrition_goal_protein')?.round() ?? 150,
+            'carbs': prefs.getDouble('daily_carbs')?.round() ?? 
+                    prefs.getDouble('nutrition_goal_carbs')?.round() ?? 300,
+            'fats': prefs.getDouble('daily_fats')?.round() ?? 
+                  prefs.getDouble('nutrition_goal_fats')?.round() ?? 65,
+          };
+        });
+        print('⚠️ Using nutrition data from SharedPreferences (apiResult not available):');
+        print('Daily Calories: ${_dailyNeeds['calories']}');
+        print('Protein: ${_dailyNeeds['protein']}g');
+        print('Carbs: ${_dailyNeeds['carbs']}g');
+        print('Fats: ${_dailyNeeds['fats']}g');
+      }
     } catch (e) {
-      print('Error loading nutrition data: $e');
+      print('❌ Error loading nutrition data: $e');
       showError('Error loading nutrition data');
     }
   }
@@ -189,7 +225,7 @@ class _CompletionScreenState extends State<CompletionScreen>
       ),
       _buildNutritionRow(
         'dashboard.fats'.tr(),
-        '${_dailyNeeds['fat']}g',
+        '${_dailyNeeds['fats']}g',
         'images/fat.png',
         Colors.red,
       ),

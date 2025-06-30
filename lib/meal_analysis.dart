@@ -4,8 +4,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'services/upload_service.dart';
-import 'services/openai_service.dart';
 import 'services/parsing_service.dart';
+import 'services/openai_service.dart';
+import 'services/translation_service.dart';
+import 'package:uuid/uuid.dart';
 
 // Re-export the Meal model from models/meal_model.dart
 export 'models/meal_model.dart';
@@ -41,35 +43,86 @@ Future<void> analyzeImageFile({
     print('🎬 Updating meals list: ${meals.length} -> ${updatedMeals.length}');
     updateMeals(updatedMeals);
     
-    // Small delay to ensure UI updates
-    await Future.delayed(const Duration(milliseconds: 100));
+    // Save analyzing meal to local storage immediately for non-authenticated users
+    if (user == null) {
+      await Meal.addOrUpdateInLocalStorage(analyzingMeal);
+      print('💾 Saved analyzing meal to local storage');
+    }
+    
+    // Longer delay to ensure UI updates and show analyzing animation
+    await Future.delayed(const Duration(milliseconds: 1000));
     
     try {
+      // Start a timer to ensure minimum analyzing time
+      final analysisStartTime = DateTime.now();
+      const minAnalysisTime = Duration(seconds: 3);
+      
       // Step 1: Upload image to backend (for display purposes)
       print('📤 Uploading image...');
       final imageUrl = await UploadService.uploadImageWithRetry(imageFile);
       print('✅ Image uploaded: $imageUrl');
       
-      // Step 2: Analyze with OpenAI (will use URL if available, otherwise base64)
+      // Step 2: Analyze with Firebase Functions (try base64 first, then URL)
+      print('🔥 Analyzing with Firebase Functions...');
       final imageName = imageFile.path.split('/').last;
       
-      // Step 2: Analyze with OpenAI (single function handles both URL and base64)
-      print('🤖 Analyzing with OpenAI...');
-      final rawAnalysisResult = await OpenAIService.analyzeMealImage(
-        imageUrl: imageUrl,
-        imageFile: imageFile,
-        imageName: imageName,
-      );
-      print('✅ OpenAI analysis completed');
+      Map<String, dynamic> analysisResult;
+      try {
+        // Try base64 analysis first (more reliable for large images)
+        analysisResult = await OpenAIService.analyzeMealImageBase64WithRetry(
+          imageFile: imageFile,
+          imageName: imageName,
+          maxRetries: 2,
+        );
+        print('✅ Base64 analysis completed successfully');
+      } catch (base64Error) {
+        print('❌ Base64 analysis failed: $base64Error');
+        try {
+          // Fallback to URL analysis
+          print('🔄 Falling back to URL analysis...');
+          analysisResult = await OpenAIService.analyzeMealImageWithRetry(
+            imageUrl: imageUrl,
+            imageName: imageName,
+            imageFile: imageFile,
+            maxRetries: 2,
+          );
+          print('✅ URL analysis completed successfully');
+        } catch (urlError) {
+          print('❌ Both base64 and URL analysis failed');
+          throw Exception('Analysis failed: Base64 error: $base64Error, URL error: $urlError');
+        }
+      }
       
-      // Step 3: Parse and validate results
-      print('🔍 Parsing results...');
-      final parsedResult = ParsingService.parseAnalysisResult(rawAnalysisResult);
+      // Step 3: The result is already parsed by OpenAIService._transformFirebaseResponse
+      print('✅ Analysis result received and transformed (English-only)');
+      
+      // Step 3.5: Translate to current user's language if not English
+      final currentLocale = context.mounted ? Localizations.localeOf(context).languageCode : 'en';
+      Map<String, dynamic> parsedResult;
+      
+      if (currentLocale != 'en' && TranslationService.isLanguageSupported(currentLocale)) {
+        print('🌍 Translating analysis to: $currentLocale');
+        parsedResult = await TranslationService.translateMealAnalysis(
+          analysisResult,
+          currentLocale,
+        );
+        print('✅ Analysis translated to $currentLocale');
+      } else {
+        parsedResult = analysisResult; // Use English result as-is
+      }
       
       if (!ParsingService.validateParsedResult(parsedResult)) {
         throw Exception('Analysis result validation failed');
       }
       print('✅ Results parsed and validated');
+      
+      // Ensure minimum analysis time has passed
+      final elapsedTime = DateTime.now().difference(analysisStartTime);
+      if (elapsedTime < minAnalysisTime) {
+        final remainingTime = minAnalysisTime - elapsedTime;
+        print('⏱️ Waiting ${remainingTime.inMilliseconds}ms to show analyzing animation...');
+        await Future.delayed(remainingTime);
+      }
       
       // Step 4: Create final meal object
       final completedMeal = Meal.fromAnalysis(
@@ -108,6 +161,12 @@ Future<void> analyzeImageFile({
         localImagePath: imageFile.path,
         userId: user?.uid,
       );
+      
+      // Save failed meal to local storage for non-authenticated users
+      if (user == null) {
+        await Meal.addOrUpdateInLocalStorage(failedMeal);
+        print('💾 Saved failed meal to local storage');
+      }
       
       // Update meals list with failed meal
       final failedMeals = meals.where((m) => m.id != analyzingMeal.id).toList();
@@ -185,6 +244,22 @@ Future<void> pickAndAnalyzeImageFromCamera({
     updateMeals: updateMeals,
     context: context,
     source: ImageSource.camera,
+  );
+}
+
+/// Function specifically for gallery selection
+Future<void> pickAndAnalyzeImageFromGallery({
+  required ImagePicker picker,
+  required List<Meal> meals,
+  required Function(List<Meal>) updateMeals,
+  required BuildContext context,
+}) async {
+  await pickAndAnalyzeImage(
+    picker: picker,
+    meals: meals,
+    updateMeals: updateMeals,
+    context: context,
+    source: ImageSource.gallery,
   );
 }
 

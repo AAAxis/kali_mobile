@@ -221,6 +221,22 @@ class ImageCacheService {
     Widget? placeholder,
     Widget? errorWidget,
   }) {
+    // Check if image is immediately available in memory cache
+    final memoryData = getFromMemoryCache(imageUrl);
+    if (memoryData != null) {
+      // Return image immediately without showing loading
+      return Image.memory(
+        memoryData,
+        fit: fit,
+        width: width,
+        height: height,
+        errorBuilder: (context, error, stackTrace) {
+          return errorWidget ?? _buildErrorWidget(width, height);
+        },
+      );
+    }
+
+    // If not in memory, use FutureBuilder for disk cache or network
     return FutureBuilder<Uint8List?>(
       future: _getNetworkImageData(imageUrl),
       builder: (context, snapshot) {

@@ -2,16 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:easy_localization/easy_localization.dart';
+import '../models/meal_model.dart';
+import '../services/nutrition_database_service.dart';
+import '../services/translation_service.dart';
+import 'ingredient_selection_screen.dart';
 
 class IngredientsEditScreen extends StatefulWidget {
-  final List<String> ingredients;
+  final List<Ingredient> detailedIngredients;
   final String mealId;
   final String language;
-  final Function(List<String>)? onSave;
+  final Function(List<Ingredient>)? onSave;
+  
   const IngredientsEditScreen({
     Key? key,
     required this.mealId,
-    required this.ingredients,
+    required this.detailedIngredients,
     required this.language,
     this.onSave,
   }) : super(key: key);
@@ -21,39 +26,31 @@ class IngredientsEditScreen extends StatefulWidget {
 }
 
 class _IngredientsEditScreenState extends State<IngredientsEditScreen> {
-  late List<String> _ingredients;
+  late List<Ingredient> _ingredients;
 
   @override
   void initState() {
     super.initState();
-    _ingredients = List<String>.from(widget.ingredients);
+    _ingredients = List<Ingredient>.from(widget.detailedIngredients);
+    // Initialize the nutrition database
+    NutritionDatabaseService.initialize();
+    
+    // If no detailed ingredients provided, show message
+    if (_ingredients.isEmpty) {
+      print('🔍 No detailed ingredients provided, user can add manually');
+    } else {
+      print('✅ Loaded ${_ingredients.length} detailed ingredients from OpenAI');
+        }
   }
 
   void _addIngredient() async {
-    final controller = TextEditingController();
-    final result = await showDialog<String>(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            title: Text('ingredients_edit.add_ingredient'.tr()),
-            content: TextField(
-              controller: controller,
-              decoration: InputDecoration(labelText: 'ingredients_edit.ingredient'.tr()),
-              autofocus: true,
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('common.cancel'.tr()),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, controller.text.trim()),
-                child: Text('ingredients_edit.add'.tr()),
-              ),
-            ],
-          ),
+    final result = await Navigator.push<Ingredient>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const IngredientSelectionScreen(),
+      ),
     );
-    if (result != null && result.isNotEmpty) {
+    if (result != null) {
       setState(() {
         _ingredients.add(result);
       });
@@ -61,30 +58,8 @@ class _IngredientsEditScreenState extends State<IngredientsEditScreen> {
   }
 
   void _editIngredient(int index) async {
-    final controller = TextEditingController(text: _ingredients[index]);
-    final result = await showDialog<String>(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            title: Text('ingredients_edit.edit_ingredient'.tr()),
-            content: TextField(
-              controller: controller,
-              decoration: InputDecoration(labelText: 'ingredients_edit.ingredient'.tr()),
-              autofocus: true,
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('common.cancel'.tr()),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, controller.text.trim()),
-                child: Text('common.save'.tr()),
-              ),
-            ],
-          ),
-    );
-    if (result != null && result.isNotEmpty) {
+    final result = await _showEditIngredientDialog(_ingredients[index]);
+    if (result != null) {
       setState(() {
         _ingredients[index] = result;
       });
@@ -97,14 +72,265 @@ class _IngredientsEditScreenState extends State<IngredientsEditScreen> {
     });
   }
 
+  // Get appropriate icon for ingredient category (same logic as ingredient selection screen)
+  IconData _getIngredientIcon(String ingredientName) {
+    final name = ingredientName.toLowerCase();
+    
+    // Fruits
+    if (name.contains('apple') || name.contains('banana') || name.contains('orange') || 
+        name.contains('berry') || name.contains('grape') || name.contains('lemon') ||
+        name.contains('lime') || name.contains('fruit') || name.contains('cherry') ||
+        name.contains('peach') || name.contains('pear') || name.contains('mango') ||
+        name.contains('pineapple') || name.contains('kiwi') || name.contains('melon')) {
+      return Icons.apple;
+    }
+    
+    // Vegetables
+    if (name.contains('tomato') || name.contains('onion') || name.contains('carrot') ||
+        name.contains('potato') || name.contains('pepper') || name.contains('lettuce') ||
+        name.contains('spinach') || name.contains('broccoli') || name.contains('cucumber') ||
+        name.contains('mushroom') || name.contains('garlic') || name.contains('celery') ||
+        name.contains('cabbage') || name.contains('vegetable')) {
+      return Icons.eco;
+    }
+    
+    // Proteins/Meat
+    if (name.contains('chicken') || name.contains('beef') || name.contains('pork') ||
+        name.contains('meat') || name.contains('fish') || name.contains('salmon') ||
+        name.contains('tuna') || name.contains('egg') || name.contains('turkey') ||
+        name.contains('bacon') || name.contains('ham') || name.contains('protein')) {
+      return Icons.restaurant;
+    }
+    
+    // Dairy
+    if (name.contains('milk') || name.contains('cheese') || name.contains('yogurt') ||
+        name.contains('butter') || name.contains('cream') || name.contains('dairy')) {
+      return Icons.local_drink;
+    }
+    
+    // Grains/Carbs
+    if (name.contains('rice') || name.contains('bread') || name.contains('pasta') ||
+        name.contains('flour') || name.contains('oats') || name.contains('quinoa') ||
+        name.contains('barley') || name.contains('wheat') || name.contains('grain') ||
+        name.contains('cereal') || name.contains('noodle')) {
+      return Icons.grain;
+    }
+    
+    // Nuts/Seeds
+    if (name.contains('nut') || name.contains('seed') || name.contains('almond') ||
+        name.contains('walnut') || name.contains('cashew') || name.contains('peanut') ||
+        name.contains('sunflower') || name.contains('chia') || name.contains('flax')) {
+      return Icons.scatter_plot;
+    }
+    
+    // Oils/Fats
+    if (name.contains('oil') || name.contains('olive') || name.contains('coconut oil') ||
+        name.contains('avocado') || name.contains('fat')) {
+      return Icons.opacity;
+    }
+    
+    // Spices/Herbs
+    if (name.contains('salt') || name.contains('pepper') || name.contains('herb') ||
+        name.contains('spice') || name.contains('basil') || name.contains('oregano') ||
+        name.contains('thyme') || name.contains('rosemary') || name.contains('parsley') ||
+        name.contains('cinnamon') || name.contains('paprika') || name.contains('cumin')) {
+      return Icons.grass;
+    }
+    
+    // Default food icon
+    return Icons.fastfood;
+  }
+
+  Future<Ingredient?> _showEditIngredientDialog(Ingredient ingredient) async {
+    final gramsController = TextEditingController(
+      text: ingredient.grams.toStringAsFixed(0),
+    );
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    double calories = 0.0;
+    double proteins = 0.0;
+    double carbs = 0.0;
+    double fats = 0.0;
+
+    void _updateNutrition() {
+      final grams = double.tryParse(gramsController.text) ?? 100.0;
+      final nutrition = NutritionDatabaseService.calculateNutrition(ingredient.name, grams);
+      
+      calories = nutrition['calories'] ?? 0.0;
+      proteins = nutrition['proteins'] ?? 0.0;
+      carbs = nutrition['carbs'] ?? 0.0;
+      fats = nutrition['fats'] ?? 0.0;
+    }
+
+    // Initialize with current values
+    _updateNutrition();
+
+    return await showDialog<Ingredient>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          backgroundColor: isDark ? Colors.grey[800] : Colors.white,
+          title: Text(
+            'ingredient_selection.edit_ingredient'.tr(namedArgs: {'ingredient': TranslationService.translateIngredientStatic(ingredient.name, context.locale.languageCode)}),
+            style: TextStyle(
+              color: isDark ? Colors.white : Colors.black,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: gramsController,
+                style: TextStyle(
+                  color: isDark ? Colors.white : Colors.black,
+                ),
+                decoration: InputDecoration(
+                  labelText: 'ingredient_selection.weight_grams'.tr(),
+                  labelStyle: TextStyle(
+                    color: isDark ? Colors.white70 : Colors.black54,
+                  ),
+                  suffixText: 'g',
+                  suffixStyle: TextStyle(
+                    color: isDark ? Colors.white70 : Colors.black54,
+                  ),
+                  border: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: isDark ? Colors.white54 : Colors.black54,
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: isDark ? Colors.white54 : Colors.black54,
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  filled: true,
+                  fillColor: isDark ? Colors.grey[700] : Colors.grey[50],
+                ),
+                keyboardType: TextInputType.number,
+                onChanged: (value) {
+                  _updateNutrition();
+                  setState(() {});
+                },
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.grey[700] : Colors.grey[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${'ingredient_selection.nutrition_information'.tr()}:',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: isDark ? Colors.white : Colors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '${'ingredient_selection.calories'.tr()}: ${calories.toStringAsFixed(0)} kcal',
+                          style: TextStyle(
+                            color: isDark ? Colors.white70 : Colors.black87,
+                          ),
+                        ),
+                        Text(
+                          '${'ingredient_selection.protein'.tr()}: ${proteins.toStringAsFixed(1)}g',
+                          style: TextStyle(
+                            color: isDark ? Colors.white70 : Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '${'ingredient_selection.carbs'.tr()}: ${carbs.toStringAsFixed(1)}g',
+                          style: TextStyle(
+                            color: isDark ? Colors.white70 : Colors.black87,
+                          ),
+                        ),
+                        Text(
+                          '${'ingredient_selection.fats'.tr()}: ${fats.toStringAsFixed(1)}g',
+                          style: TextStyle(
+                            color: isDark ? Colors.white70 : Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'common.cancel'.tr(),
+                style: TextStyle(
+                  color: isDark ? Colors.white70 : Colors.black54,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                final grams = double.tryParse(gramsController.text) ?? 100.0;
+
+                final updatedIngredient = Ingredient(
+                  name: ingredient.name,
+                  grams: grams,
+                  calories: calories,
+                  proteins: proteins,
+                  carbs: carbs,
+                  fats: fats,
+                );
+
+                Navigator.pop(context, updatedIngredient);
+              },
+              child: Text(
+                'common.save'.tr(),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _submit() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null && widget.mealId.isNotEmpty) {
-      await FirebaseFirestore.instance
-          .collection('analyzed_meals')
-          .doc(widget.mealId)
-          .update({'ingredients.${widget.language}': _ingredients});
+      try {
+        // Update Firebase with detailed ingredients
+        await FirebaseFirestore.instance
+            .collection('analyzed_meals')
+            .doc(widget.mealId)
+            .update({
+          'detailedIngredients': _ingredients.map((i) => i.toJson()).toList(),
+        });
+      } catch (e) {
+        print('Error updating ingredients in Firebase: $e');
+      }
     }
+    
     if (widget.onSave != null) {
       widget.onSave!(_ingredients);
     }
@@ -113,27 +339,177 @@ class _IngredientsEditScreenState extends State<IngredientsEditScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Scaffold(
+      backgroundColor: isDark ? Colors.grey[900] : Colors.white,
       appBar: AppBar(
-        title: Text('ingredients_edit.title'.tr()),
+        title: Text(
+          'ingredients_edit.title'.tr(),
+          style: TextStyle(
+            color: isDark ? Colors.white : Colors.black,
+          ),
+        ),
+        backgroundColor: isDark ? Colors.grey[850] : Colors.white,
+        iconTheme: IconThemeData(
+          color: isDark ? Colors.white : Colors.black,
+        ),
+        elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: _submit,
         ),
       ),
-      body: ListView.builder(
-        itemCount: _ingredients.length,
-        itemBuilder: (context, index) {
-          return ListTile(
-            title: Text(_ingredients[index]),
-            onTap: () => _editIngredient(index),
-            trailing: IconButton(
-              icon: const Icon(Icons.delete),
-              onPressed: () => _deleteIngredient(index),
-            ),
-          );
-        },
-      ),
+      body: _ingredients.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.restaurant,
+                    size: 64,
+                    color: Colors.grey[400],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'ingredients_edit.no_ingredients'.tr(),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: isDark ? Colors.white70 : Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'ingredients_edit.tap_add_ingredients'.tr(),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: isDark ? Colors.white54 : Colors.grey[500],
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _ingredients.length,
+              itemBuilder: (context, index) {
+                final ingredient = _ingredients[index];
+                return Dismissible(
+                  key: Key('${ingredient.name}_$index'),
+                  direction: DismissDirection.endToStart,
+                  background: Container(
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 20),
+                    margin: const EdgeInsets.only(bottom: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.delete,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                  ),
+                  confirmDismiss: (direction) async {
+                    return await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        backgroundColor: isDark ? Colors.grey[800] : Colors.white,
+                        title: Text(
+                          'ingredients_edit.delete_ingredient'.tr(),
+                          style: TextStyle(
+                            color: isDark ? Colors.white : Colors.black,
+                          ),
+                        ),
+                        content: Text(
+                          'ingredients_edit.remove_ingredient'.tr(namedArgs: {'ingredient': TranslationService.translateIngredientStatic(ingredient.name, context.locale.languageCode)}),
+                          style: TextStyle(
+                            color: isDark ? Colors.white70 : Colors.black87,
+                          ),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: Text(
+                              'common.cancel'.tr(),
+                              style: TextStyle(
+                                color: isDark ? Colors.white70 : Colors.black54,
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            child: Text(
+                              'ingredients_edit.delete'.tr(),
+                              style: TextStyle(
+                                color: Colors.red,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                  onDismissed: (direction) {
+                    _deleteIngredient(index);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('${TranslationService.translateIngredientStatic(ingredient.name, context.locale.languageCode)} ${'common.removed'.tr()}'),
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  },
+                  child: Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    color: isDark ? Colors.grey[800] : Colors.white,
+                    child: ListTile(
+                      onTap: () => _editIngredient(index),
+                      leading: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          _getIngredientIcon(ingredient.name),
+                          color: Theme.of(context).colorScheme.primary,
+                          size: 20,
+                        ),
+                      ),
+                      title: Text(
+                        TranslationService.translateIngredientStatic(ingredient.name, context.locale.languageCode),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w500,
+                          color: isDark ? Colors.white : Colors.black,
+                        ),
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${'ingredient_selection.weight'.tr()}: ${ingredient.grams.toStringAsFixed(0)}g',
+                            style: TextStyle(
+                              color: isDark ? Colors.white70 : Colors.grey[600],
+                            ),
+                          ),
+                          Text(
+                            '${ingredient.calories.toStringAsFixed(0)} ${'ingredient_selection.kcal_unit'.tr()} • '
+                            '${'ingredient_selection.protein'.tr()}: ${ingredient.proteins.toStringAsFixed(1)}${'ingredient_selection.grams_unit'.tr()} • '
+                            '${'ingredient_selection.carbs'.tr()}: ${ingredient.carbs.toStringAsFixed(1)}${'ingredient_selection.grams_unit'.tr()} • '
+                            '${'ingredient_selection.fats'.tr()}: ${ingredient.fats.toStringAsFixed(1)}${'ingredient_selection.grams_unit'.tr()}',
+                            style: TextStyle(
+                              color: isDark ? Colors.white54 : Colors.grey[500],
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+                              },
+              ),
       floatingActionButton: FloatingActionButton(
         onPressed: _addIngredient,
         child: const Icon(Icons.add),

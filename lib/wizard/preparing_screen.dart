@@ -102,6 +102,19 @@ class _PreparingScreenState extends State<PreparingScreen> {
       final protein = (tdee * 0.3 / 4).round();
       final carbs = (tdee * 0.4 / 4).round();
       final fat = (tdee * 0.3 / 9).round();
+      
+      // Debug logging
+      print('🧮 Nutrition Calculation Debug:');
+      print('  - Height: ${heightCm}cm');
+      print('  - Weight: ${weightKg}kg');
+      print('  - Age: ${age} years');
+      print('  - Gender: ${gender}');
+      print('  - BMR: ${bmr.toStringAsFixed(1)} calories');
+      print('  - TDEE: ${tdee.toStringAsFixed(1)} calories');
+      print('  - Protein: ${protein}g (${(tdee * 0.3).toStringAsFixed(1)} calories)');
+      print('  - Carbs: ${carbs}g (${(tdee * 0.4).toStringAsFixed(1)} calories)');
+      print('  - Fat: ${fat}g (${(tdee * 0.3).toStringAsFixed(1)} calories)');
+      
       final apiResult = {
         'bmi': bmi,
         'category': category,
@@ -110,7 +123,7 @@ class _PreparingScreenState extends State<PreparingScreen> {
         'daily_calories': tdee.round(),
         'protein': protein,
         'carbs': carbs,
-        'fat': fat,
+        'fats': fat,
         ...widget.wizardData,
       };
       // Save calculated values to SharedPreferences
@@ -119,6 +132,18 @@ class _PreparingScreenState extends State<PreparingScreen> {
       await prefs.setDouble('daily_protein', protein.toDouble());
       await prefs.setDouble('daily_carbs', carbs.toDouble());
       await prefs.setDouble('daily_fats', fat.toDouble());
+      
+      // Also save to dashboard keys (nutrition_goal_*) for consistency
+      await prefs.setDouble('nutrition_goal_calories', tdee.roundToDouble());
+      await prefs.setDouble('nutrition_goal_protein', protein.toDouble());
+      await prefs.setDouble('nutrition_goal_carbs', carbs.toDouble());
+      await prefs.setDouble('nutrition_goal_fats', fat.toDouble());
+      
+      // Set flag to indicate goals have been set
+      await prefs.setBool('nutrition_goals_set', true);
+      
+      print('✅ Nutrition goals saved to both key sets from wizard');
+      
       final elapsed = DateTime.now().difference(startTime);
       final waitTime = minDisplayDuration - elapsed;
       if (waitTime > Duration.zero) {

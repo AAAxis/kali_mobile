@@ -5,7 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'dart:convert';
-import '../dashboard/dashboard.dart';
+import 'auth.dart';
 
 class EmailVerificationScreen extends StatefulWidget {
   final String email;
@@ -87,7 +87,9 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
         await prefs.remove('verification_code');
 
         if (mounted) {
-          Navigator.of(context).popUntil((route) => route.isFirst);
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const AuthScreen()),
+          );
         }
       } else {
         throw Exception('verification.user_not_found'.tr());
@@ -95,7 +97,10 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('verification.verification_error'.tr(args: [e.toString()]))),
+          SnackBar(
+            content: Text('verification.verification_error'.tr(args: [e.toString()])),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
         );
       }
     } finally {
@@ -129,14 +134,20 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
         });
         _startResendCountdown();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Verification code resent successfully')),
+          SnackBar(
+            content: Text('verification.code_resent'.tr()),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+          ),
         );
       } else {
         throw Exception('Failed to resend code: ${response.body}');
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error resending code: $e')),
+        SnackBar(
+          content: Text('Error resending code: $e'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
       );
     } finally {
       if (mounted) {
@@ -147,41 +158,45 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor = const Color(0xFF232228);
-
+    final theme = Theme.of(context);
+    
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: theme.scaffoldBackgroundColor,
+      appBar: AppBar(
+        backgroundColor: theme.appBarTheme.backgroundColor,
+        elevation: theme.appBarTheme.elevation,
+        iconTheme: theme.appBarTheme.iconTheme,
+        title: Text(
+          'email_verification.title'.tr(),
+          style: theme.textTheme.titleLarge,
+        ),
+      ),
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 40),
+              const SizedBox(height: 24),
               Text(
                 'verification.verify_email'.tr(),
-                style: TextStyle(
-                  fontSize: 28,
+                style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: primaryColor,
-                  fontFamily: 'Poppins',
                 ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
               Text(
-                'verification.code_sent_to'.tr(),
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[600],
+                'email_verification.check_inbox'.tr(),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.secondary,
                 ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
               Text(
                 widget.email,
-                style: const TextStyle(
-                  fontSize: 16,
+                style: theme.textTheme.bodyLarge?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
                 textAlign: TextAlign.center,
@@ -198,21 +213,23 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                       textAlign: TextAlign.center,
                       keyboardType: TextInputType.number,
                       maxLength: 1,
-                      style: const TextStyle(fontSize: 24),
+                      style: theme.textTheme.titleLarge,
                       decoration: InputDecoration(
                         counterText: '',
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(color: Color(0xFF232228), width: 1.5),
+                          borderSide: BorderSide(color: theme.colorScheme.outline),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(color: Color(0xFF232228), width: 1.5),
+                          borderSide: BorderSide(color: theme.colorScheme.outline),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(color: Color(0xFF232228), width: 2),
+                          borderSide: BorderSide(color: theme.colorScheme.primary),
                         ),
+                        fillColor: theme.colorScheme.surface,
+                        filled: true,
                       ),
                       onChanged: (value) {
                         if (value.length == 1 && index < 5) {
@@ -228,29 +245,27 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
               const SizedBox(height: 32),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryColor,
-                  foregroundColor: Colors.white,
+                  backgroundColor: theme.brightness == Brightness.light ? Colors.black : Colors.white,
+                  foregroundColor: theme.brightness == Brightness.light ? Colors.white : Colors.black,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(32),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                 ),
                 onPressed: _isLoading ? null : _verifyCode,
                 child: _isLoading
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
-                          color: Colors.white,
+                          color: theme.brightness == Brightness.light ? Colors.white : Colors.black,
                           strokeWidth: 2,
                         ),
                       )
                     : Text(
                         'verification.verify'.tr(),
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          color: theme.brightness == Brightness.light ? Colors.white : Colors.black,
                         ),
                       ),
               ),
@@ -263,11 +278,10 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                       : _resendCountdown > 0
                           ? 'verification.resend_countdown'.tr(args: [_resendCountdown.toString()])
                           : 'verification.resend_code'.tr(),
-                  style: TextStyle(
+                  style: theme.textTheme.bodyMedium?.copyWith(
                     color: _isResending || _resendCountdown > 0
-                        ? Colors.grey
-                        : primaryColor,
-                    fontWeight: FontWeight.w600,
+                        ? theme.colorScheme.secondary
+                        : theme.brightness == Brightness.light ? Colors.black : Colors.white,
                   ),
                 ),
               ),

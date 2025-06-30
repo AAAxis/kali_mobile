@@ -4,7 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/paywall_service.dart';
 import 'dart:io';
 import 'package:in_app_purchase/in_app_purchase.dart';
-import '../auth/login.dart';
+import '../auth/auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:async';
@@ -123,10 +123,20 @@ class _RedeemCodeScreenState extends State<RedeemCodeScreen> {
     super.dispose();
   }
 
-  void _goToLogin() {
+  void _goToLogin() async {
+    // Ensure wizard is marked as completed
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('has_seen_welcome', true);
+      await prefs.setBool('wizard_completed', true);
+      print('✅ Wizard marked as completed from promocode screen');
+    } catch (e) {
+      print('❌ Error marking wizard as completed: $e');
+    }
+    
     // Navigate to the login screen and clear the wizard stack
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (context) => LoginScreen()),
+      MaterialPageRoute(builder: (context) => AuthScreen()),
       (route) => false,
     );
   }
