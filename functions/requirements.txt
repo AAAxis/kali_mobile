@@ -6,3 +6,5 @@ httpx[http2]~=0.24.1
 traceback2~=1.4.0
 flask>=2.1.2
 Pillow>=10.0.0
+pymongo>=4.5.0
+fastapi>=0.110.0

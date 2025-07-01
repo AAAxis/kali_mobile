@@ -12,227 +12,47 @@ import io
 from PIL import Image
 import requests
 import re
+import concurrent.futures
+import uuid
+from datetime import datetime
+import logging
+from typing import Optional, List, Dict, Any
+from utils import (
+    get_recipe_logic, 
+    encode_image, 
+    robust_json_parse, 
+    process_ingredient_nutrition_data, 
+    get_refrigerator_prompt, 
+    get_invoice_prompt, 
+    compress_image_for_api,
+    MAX_IMAGES,
+    MAX_FILE_SIZE,
+    INGREDIENT_ANALYSIS_TIMEOUT,
+    get_analysis_prompt,
+    get_simple_meal_analysis_prompt
+)
+from firebase_functions.https_fn import Request, Response
 
 # Initialize Firebase app
 app = initialize_app()
 
-# Import our custom helper module
+# Import our custom helper modules
 from openai_helper import analyze_image_with_openai, analyze_image_with_openrouter
+from mongodb_config import (
+    save_validation_error, 
+    save_ingredient_to_mongo, 
+    save_meal_analysis_to_mongo, 
+    validate_nutrition_data
+)
 
-def get_analysis_prompt():
-    """Get the enhanced analysis prompt for meal image analysis"""
-    return """
-           As a professional nutritionist, analyze the provided food image and return accurate nutritional data in strict JSON format.
+# Constants for the new functions
+BASE_MODEL_NAME = "google/gemini-2.5-flash-preview"
 
-          ANALYSIS INSTRUCTIONS:
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-          1. IDENTIFY ALL VISIBLE ITEMS:
-             - Include partially hidden items, sauces, and items extending beyond the frame
-             - Identify the likely cuisine type (e.g., Mediterranean, Asian, American)
-             - Account for perspective distortion and lighting variations when estimating size/quantity
-
-          2. ESTIMATE QUANTITIES (WITH IMAGE GEOMETRY AND CAMERA ANGLE):
-              - Use known reference objects in the image (e.g. standard fork ≈ 18cm, plate ≈ 27cm diameter) to scale food items
-              - Adjust estimates based on camera angle:
-                 * If taken from top-down (90°) – use area coverage on plate for volume approximation
-                 * If taken from ~45° – apply foreshortening correction to infer height/depth
-                 * If taken from low angle (<30°) – estimate vertical volume more accurately but adjust for occlusion
-              - Document:
-                 * Apparent scaling ratios
-                 * Any overlap, stacking, or visual distortion that affects estimation
-              - Provide comparison-based estimates such as:
-                 * "Meat portion ≈ 2× fork length in width, 1× in thickness"
-                 * "Rice occupies ⅓ of the plate area, thickness ~1.5 cm"
-
-          3. PROVIDE COMPLETE NUTRITIONAL BREAKDOWN:
-             - Calculate: proteins, carbohydrates, fats in grams
-             - Sum total calories: (proteins × 4) + (carbs × 4) + (fats × 9)
-             - Include likely ingredients used in preparation (oils, spices) when evident
-             - Use USDA FoodData Central or equivalent databases
-
-          4. DOCUMENT ALL ASSUMPTIONS:
-             - Size comparisons used
-             - Inferences based on shape, shadow, overlap
-             - Perspective adjustments made
-             - Preparation method assumptions
-
-          Return output in this JSON format:
-
-          {
-            "mealName": "English meal name",
-            "calories": number (estimated total calories),
-            "meal_name": "Descriptive name of the combined meal",
-            "cuisine_type": "Mediterranean",
-            "macronutrients": {
-              "proteins": "40g",
-              "carbohydrates": "50g",
-              "fats": "30g"
-            },
-            "macros": {
-               "proteins": number (grams),
-               "carbs": number (grams),
-               "fats": number (grams)
-             },
-            "estimated_weight": "500g",
-            "weight_estimation_details": [
-              "Grilled chicken breast × 200g = 200g",
-              "Quinoa salad × 300g = 300g"
-            ],
-            "ingredients": ["chicken breast", "quinoa", "tomatoes", "olive oil", "lemon"],
-            "nutrients": {
-                "fiber": number (grams),
-                "sugar": number (grams),
-                "sodium": number (mg),
-                "potassium": number (mg),
-                "vitamin_c": number (mg),
-                "calcium": number (mg),
-                "iron": number (mg)
-              },
-            "cooking_state": "cooked",
-            "cooking_method": "grilled|fried|baked|raw|steamed|etc",
-            "category": "meat (poultry)",
-            "category_cause": "Contains chicken breast",
-            "assumptions": [
-              "Olive oil used for grilling",
-              "Portion sizes estimated based on plate size"
-            ],
-            "portion_size": "small|medium|large",
-            "meal_type": "breakfast|lunch|dinner|snack",
-            "allergens": ["gluten", "dairy", "nuts", "etc"],
-            "dietary_tags": ["vegetarian", "vegan", "keto", "low-carb","high-protein", "gluten-free", "etc"],
-            "part_identification_confidence": {
-              "chicken breast": "95%",
-              "quinoa": "85%"
-            },
-            "health_assessment": "healthy",
-            "healthiness": "healthy|medium|unhealthy",
-            "healthiness_explanation": "English explanation ex: This meal contains lean protein, whole grains, and vegetables with healthy fats",
-            "source": "USDA FoodData Central",
-            "confidence_level": "high",
-            "macronutrients_by_ingredient": {
-              "chicken breast": {
-                "proteins": "31g",
-                "carbohydrates": "0g",
-                "fats": "3.6g",
-                "calories": "165"
-              },
-              "quinoa": {
-                "proteins": "8g",
-                "carbohydrates": "39g",
-                "fats": "3.5g",
-                "calories": "222"
-              }
-            },
-            "judge": {
-              "final_meal_name": "Grilled Chicken with Quinoa Salad",
-              "estimated_total_calories": 650,
-              "total_macronutrients": {
-                "protein_grams": 40,
-                "fat_grams": 30,
-                "carbohydrate_grams": 50
-              },
-              "final_ingredients_list": [
-                "chicken breast",
-                "quinoa",
-                "tomatoes",
-                "olive oil",
-                "lemon"
-              ],
-              "final_assumptions": [
-                "Grilled with 1 tbsp olive oil",
-                "Salad is not dressed with sugar-based dressing"
-              ],
-              "cooking_state": "cooked",
-              "category": "meat (poultry)",
-              "category_cause": "Dominant ingredient is grilled chicken",
-              "source": "USDA FoodData Central",
-              "judge_estimation_calories": {
-                "total_estimated_calories": 650,
-                "ingredient_breakdown": [
-                  {
-                    "ingredient": "chicken breast",
-                    "estimated_weight_grams": 200,
-                    "estimated_kcal_per_gram": 0.83,
-                    "estimated_calories": 165,
-                    "weight_estimation_steps": ["1 medium fillet × 200g = 200g"],
-                    "macronutrients": {
-                      "protein_grams": 31,
-                      "fat_grams": 3.6,
-                      "carbohydrate_grams": 0
-                    }
-                  },
-                  {
-                    "ingredient": "quinoa",
-                    "estimated_weight_grams": 300,
-                    "estimated_kcal_per_gram": 0.74,
-                    "estimated_calories": 222,
-                    "weight_estimation_steps": ["1.5 cup cooked quinoa = 300g"],
-                    "macronutrients": {
-                      "protein_grams": 8,
-                      "fat_grams": 3.5,
-                      "carbohydrate_grams": 39
-                    }
-                  }
-                ],
-                "calculation_method": "Sum of ingredients based on standard kcal/g values"
-              }
-            }
-          }
-
-          Provide accurate nutritional estimates based on visible ingredients and portion sizes. Be as detailed and accurate as possible. All responses should be in English only.
-
-            🚩 Return only a valid JSON block.
-            🚩 Do not include markdown, explanations, or additional text.
-            🚩 This is your final expert-level output for visual nutritional analysis.
-          """
-
-
-def compress_image_for_api(image_bytes, max_size_kb=400, quality=85):
-    """Compress image for API submission"""
-    try:
-        # Open image from bytes
-        image = Image.open(io.BytesIO(image_bytes))
-        
-        # Convert to RGB if necessary
-        if image.mode in ('RGBA', 'LA', 'P'):
-            image = image.convert('RGB')
-        
-        # Calculate initial compression
-        output = io.BytesIO()
-        image.save(output, format='JPEG', quality=quality, optimize=True)
-        compressed_bytes = output.getvalue()
-        
-        # If still too large, reduce dimensions
-        while len(compressed_bytes) > max_size_kb * 1024 and quality > 10:
-            output = io.BytesIO()
-            # Reduce quality
-            quality -= 10
-            image.save(output, format='JPEG', quality=quality, optimize=True)
-            compressed_bytes = output.getvalue()
-        
-        # If still too large, resize image
-        if len(compressed_bytes) > max_size_kb * 1024:
-            width, height = image.size
-            scale_factor = 0.8
-            while len(compressed_bytes) > max_size_kb * 1024 and scale_factor > 0.3:
-                new_width = int(width * scale_factor)
-                new_height = int(height * scale_factor)
-                resized_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
-                
-                output = io.BytesIO()
-                resized_image.save(output, format='JPEG', quality=quality, optimize=True)
-                compressed_bytes = output.getvalue()
-                scale_factor -= 0.1
-        
-        print(f"📏 Image compressed from {len(image_bytes)} to {len(compressed_bytes)} bytes")
-        return compressed_bytes
-        
-    except Exception as e:
-        print(f"❌ Error compressing image: {e}")
-        return image_bytes
-
-
-
+# MongoDB configuration is now handled in mongodb_config.py
 
 # OpenAI function for analyzing meal images (V1 - Original)
 @https_fn.on_request()
@@ -274,56 +94,7 @@ def analyze_meal_image_v1(req: https_fn.Request) -> https_fn.Response:
         else:
             print(f"Processing base64 image data ({len(image_base64)} characters)")
         
-        prompt = """
-Analyze this meal image and provide detailed nutritional information in JSON format. Include:
-1. Meal identification (in English only)
-2. Accurate calorie estimation
-3. Detailed macro breakdown (in grams)
-4. List of ingredients with estimated weights (in English only)
-5. Detailed ingredients with individual nutrition per ingredient
-6. A categorical healthiness value (e.g., 'healthy', 'medium', 'unhealthy')
-7. Detailed health assessment text
-8. Source URL for more information
-
-Format the response as:
-{
-  'mealName': 'Meal name in English',
-  'estimatedCalories': number (e.g., 670),
-  'macros': {
-    'proteins': 'Xg (e.g., 30g)',
-    'carbohydrates': 'Xg (e.g., 50g)',
-    'fats': 'Xg (e.g., 40g)'
-  },
-  'ingredients': ['ingredient1', 'ingredient2', 'ingredient3'],
-  'detailedIngredients': [
-    {
-      'name': 'Ingredient name in English',
-      'grams': estimated_weight_in_grams,
-      'calories': calories_for_this_ingredient,
-      'proteins': proteins_in_grams,
-      'carbs': carbs_in_grams,
-      'fats': fats_in_grams
-    }
-  ],
-  'healthiness': 'healthy' | 'medium' | 'unhealthy' | 'N/A',
-  'health_assessment': 'Detailed health assessment of the meal',
-  'source': 'A valid URL (starting with http or https) for more information about this meal'
-}
-
-Important:
-- Provide realistic calorie and macro values based on visible portions.
-- Ensure 'estimatedCalories' is a number.
-- Ensure macros (proteins, carbohydrates, fats) are strings ending with 'g'.
-- For detailedIngredients, estimate the weight of each visible ingredient in grams.
-- Calculate individual nutrition values for each ingredient based on typical nutrition data.
-- The sum of all ingredient calories should approximately match estimatedCalories.
-- The sum of all ingredient macros should approximately match the main macros.
-- The 'healthiness' field should be one of 'healthy', 'medium', 'unhealthy', or 'N/A'.
-- Provide a comprehensive 'health_assessment' string.
-- The source field MUST be a valid URL, defaulting to https://fdc.nal.usda.gov/ if needed.
-- All responses should be in English only - translation will be handled client-side.
-- Be as accurate as possible with ingredient weights and nutrition values.
-"""
+        prompt = get_simple_meal_analysis_prompt()
 
         try:
             # Using the custom analyze_image_with_openai function from openai_helper
@@ -573,4 +344,268 @@ def analyze_meal_image_v2(req: https_fn.Request) -> https_fn.Response:
             status=500,
             headers=headers
         )
+
+# Refrigerator Analysis Function
+@https_fn.on_request()
+def analyze_refrigerator(req: https_fn.Request) -> https_fn.Response:
+    """
+    Analyze refrigerator images to identify ingredients
+    """
+    # Enable CORS
+    if req.method == 'OPTIONS':
+        headers = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST',
+            'Access-Control-Allow-Headers': 'Content-Type',
+            'Access-Control-Max-Age': '3600'
+        }
+        return https_fn.Response("", status=204, headers=headers)
+    
+    headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'application/json'
+    }
+    
+    try:
+        if req.method != 'POST':
+            return https_fn.Response(
+                json.dumps({"error": "Only POST method is allowed"}),
+                status=405,
+                headers=headers
+            )
+        
+        # Parse request body
+        try:
+            request_data = req.get_json()
+            if not request_data:
+                raise ValueError("No JSON data provided")
+        except Exception as e:
+            return https_fn.Response(
+                json.dumps({"error": f"Invalid JSON data: {str(e)}"}),
+                status=400,
+                headers=headers
+            )
+        
+        # Get images from request
+        images = request_data.get('images', [])
+        if not images:
+            return https_fn.Response(
+                json.dumps({"error": "No images provided"}),
+                status=400,
+                headers=headers
+            )
+        
+        if len(images) > MAX_IMAGES:
+            return https_fn.Response(
+                json.dumps({"error": f"Maximum {MAX_IMAGES} images allowed"}),
+                status=400,
+                headers=headers
+            )
+        
+        logger.info(f"Processing {len(images)} refrigerator images")
+        
+        # Process images
+        all_ingredients = []
+        total_items = 0
+        processed_images = 0
+        errors = []
+        
+        # Process each image
+        for index, image_data in enumerate(images):
+            try:
+                image_base64 = image_data.get('image_base64')
+                if not image_base64:
+                    errors.append(f"Image {index+1}: No base64 data provided")
+                    continue
+                
+                # Analyze image using OpenRouter
+                result = analyze_image_with_openrouter(
+                    image_base64=image_base64,
+                    prompt=get_refrigerator_prompt()
+                )
+                
+                if "error" in result:
+                    errors.append(f"Image {index+1}: {result['error']}")
+                else:
+                    # Process ingredient data
+                    if "macronutrients_by_ingredient" in result:
+                        process_ingredient_nutrition_data(result)
+                    
+                    # Collect ingredients
+                    if "ingredients" in result:
+                        all_ingredients.extend(result["ingredients"])
+                    
+                    if "total_items" in result:
+                        total_items += result["total_items"]
+                    
+                    processed_images += 1
+                    
+            except Exception as e:
+                error_msg = f"Error processing image {index+1}: {str(e)}"
+                errors.append(error_msg)
+                logger.error(error_msg)
+        
+        # Create response
+        response_data = {
+            "ingredients": all_ingredients,
+            "total_items": total_items,
+            "images_processed": processed_images,
+            "total_images": len(images),
+            "unique_ingredients": len(set(ingredient.get("name", "") for ingredient in all_ingredients)),
+            "processing_errors": errors if errors else None,
+            "analysis_type": "refrigerator_analysis"
+        }
+        
+        return https_fn.Response(
+            json.dumps(response_data),
+            status=200,
+            headers=headers
+        )
+        
+    except Exception as e:
+        error_msg = f"Unexpected error in analyze_refrigerator: {str(e)}"
+        logger.error(error_msg)
+        return https_fn.Response(
+            json.dumps({"error": error_msg}),
+            status=500,
+            headers=headers
+        )
+
+# Invoice Analysis Function
+@https_fn.on_request()
+def analyze_invoice(req: https_fn.Request) -> https_fn.Response:
+    """
+    Analyze invoice/receipt images to identify ingredients
+    """
+    # Enable CORS
+    if req.method == 'OPTIONS':
+        headers = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST',
+            'Access-Control-Allow-Headers': 'Content-Type',
+            'Access-Control-Max-Age': '3600'
+        }
+        return https_fn.Response("", status=204, headers=headers)
+    
+    headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'application/json'
+    }
+    
+    try:
+        if req.method != 'POST':
+            return https_fn.Response(
+                json.dumps({"error": "Only POST method is allowed"}),
+                status=405,
+                headers=headers
+            )
+        
+        # Parse request body
+        try:
+            request_data = req.get_json()
+            if not request_data:
+                raise ValueError("No JSON data provided")
+        except Exception as e:
+            return https_fn.Response(
+                json.dumps({"error": f"Invalid JSON data: {str(e)}"}),
+                status=400,
+                headers=headers
+            )
+        
+        # Get images from request
+        images = request_data.get('images', [])
+        if not images:
+            return https_fn.Response(
+                json.dumps({"error": "No images provided"}),
+                status=400,
+                headers=headers
+            )
+        
+        if len(images) > MAX_IMAGES:
+            return https_fn.Response(
+                json.dumps({"error": f"Maximum {MAX_IMAGES} images allowed"}),
+                status=400,
+                headers=headers
+            )
+        
+        logger.info(f"Processing {len(images)} invoice images")
+        
+        # Process images
+        all_ingredients = []
+        total_items = 0
+        processed_images = 0
+        errors = []
+        receipt_summaries = []
+        
+        # Process each image
+        for index, image_data in enumerate(images):
+            try:
+                image_base64 = image_data.get('image_base64')
+                if not image_base64:
+                    errors.append(f"Image {index+1}: No base64 data provided")
+                    continue
+                
+                # Analyze image using OpenRouter
+                result = analyze_image_with_openrouter(
+                    image_base64=image_base64,
+                    prompt=get_invoice_prompt()
+                )
+                
+                if "error" in result:
+                    errors.append(f"Image {index+1}: {result['error']}")
+                else:
+                    # Process ingredient data
+                    if "macronutrients_by_ingredient" in result:
+                        process_ingredient_nutrition_data(result)
+                    
+                    # Collect ingredients
+                    if "ingredients" in result:
+                        all_ingredients.extend(result["ingredients"])
+                    
+                    if "total_items" in result:
+                        total_items += result["total_items"]
+                    
+                    if "receipt_summary" in result:
+                        receipt_summaries.append(result["receipt_summary"])
+                    
+                    processed_images += 1
+                    
+            except Exception as e:
+                error_msg = f"Error processing image {index+1}: {str(e)}"
+                errors.append(error_msg)
+                logger.error(error_msg)
+        
+        # Create response
+        response_data = {
+            "ingredients": all_ingredients,
+            "total_items": total_items,
+            "receipt_summaries": receipt_summaries,
+            "images_processed": processed_images,
+            "total_images": len(images),
+            "unique_ingredients": len(set(ingredient.get("name", "") for ingredient in all_ingredients)),
+            "processing_errors": errors if errors else None,
+            "analysis_type": "invoice_receipt_analysis"
+        }
+        
+        return https_fn.Response(
+            json.dumps(response_data),
+            status=200,
+            headers=headers
+        )
+        
+    except Exception as e:
+        error_msg = f"Unexpected error in analyze_invoice: {str(e)}"
+        logger.error(error_msg)
+        return https_fn.Response(
+            json.dumps({"error": error_msg}),
+            status=500,
+            headers=headers
+        )
+
+
+@https_fn.on_request()
+def get_recipe(req: Request) -> Response:
+    params = req.args
+    result = get_recipe_logic(params)
+    return Response(json.dumps(result), mimetype="application/json")
 
