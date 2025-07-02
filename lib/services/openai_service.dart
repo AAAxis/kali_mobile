@@ -18,7 +18,7 @@ class OpenAIService {
       
       
       // Get the function URL - you'll need to replace with your actual project URL
-      final functionUrl = 'https://us-central1-bankapp-9798a.cloudfunctions.net/analyze_meal_image_v1';
+      final functionUrl = 'https://analyze-refrigerator-7jk47pqmda-uc.a.run.app';
       
       // Prepare the request payload to match your function's expected format
       final requestData = {
@@ -93,7 +93,7 @@ class OpenAIService {
       print('📏 Compressed file size: ${await compressedFile.length()} bytes');
       
       // Your Firebase Function is an HTTP function, so we need to call it via HTTP
-      final functionUrl = 'https://us-central1-bankapp-9798a.cloudfunctions.net/analyze_meal_image';
+      final functionUrl = 'https://analyze-refrigerator-7jk47pqmda-uc.a.run.app';
       
       // Prepare the request payload to match your function's expected format
       final requestData = {
