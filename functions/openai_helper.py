@@ -1,7 +1,6 @@
 import os
 import json
 import requests
-import re
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -9,7 +8,6 @@ load_dotenv()
 
 # Get API key from environment variables
 api_key = os.environ.get("OPENAI_API_KEY", "")
-open_router_api_key = os.environ.get("OPENROUTER_API_KEY", "")
 
 if api_key and len(api_key) > 10:
     print("🔑 OpenAI API key loaded successfully")
@@ -18,14 +16,7 @@ else:
     print("📝 Please set OPENAI_API_KEY in your .env file")
     print("📝 Get your key from: https://platform.openai.com/api-keys")
 
-if open_router_api_key and len(open_router_api_key) > 10:
-    print("🔑 OpenRouter API key loaded successfully")
-else:
-    print("❌ OpenRouter API key not configured or invalid")
-    print("📝 Please set OPENROUTER_API_KEY in your .env file")
-    print("📝 Get your key from: https://openrouter.ai/keys")
-
-def analyze_image_with_openai(image_url=None, prompt=None, image_base64=None):
+def analyze_image_with_vision(image_url=None, prompt=None, image_base64=None):
     """
     Analyze an image using OpenAI's Vision capabilities
     
@@ -164,91 +155,4 @@ def analyze_image_with_openai(image_url=None, prompt=None, image_base64=None):
         error_msg = f"Unexpected error in OpenAI Vision API call: {str(e)}"
         print(f"❌ {error_msg}")
         print(f"❌ Error type: {type(e).__name__}")
-        return {"error": error_msg}
-
-def analyze_image_with_openrouter(image_url=None, image_base64=None, prompt=None):
-    """
-    Analyze an image using OpenAI or Gemini Vision capabilities via OpenRouter.
-    Requires either `image_url` or `image_base64`.
-    """
-    try:
-        api_key = os.environ.get("OPENROUTER_API_KEY")
-        if not api_key:
-            raise Exception("OpenRouter API key not configured")
-
-        # Prepare image content
-        if image_url:
-            image_content = {"type": "image_url", "image_url": {"url": image_url}}
-        elif image_base64:
-            image_content = {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}}
-        else:
-            raise Exception("Either image_url or image_base64 must be provided")
-
-        content = []
-
-        if prompt:
-            content.append({
-                "type": "text",
-                "text": prompt
-            })
-
-        content.append(image_content)
-
-        # Prepare the request payload
-        payload = {
-            "model": "google/gemini-2.5-flash-preview",
-            "messages": [
-                {
-                    "role": "user",
-                    "content": content
-                }
-            ],
-            "temperature": 0,
-            "response_format": "json"
-        }
-
-        print("🤖 Making OpenRouter API request...")
-
-        try:
-            response = requests.post(
-                'https://openrouter.ai/api/v1/chat/completions',
-                headers={
-                    'Authorization': f'Bearer {api_key}',
-                    'Content-Type': 'application/json'
-                },
-                json=payload,
-                timeout=60
-            )
-        except Exception as e:
-            print(f"❌ Error in API call: {str(e)}")
-            return {"error": str(e)}
-
-        print(f"🤖 OpenRouter API response status: {response.status_code}")
-
-        if response.status_code == 200:
-            result = response.json()
-            content = result['choices'][0]['message']['content']
-
-            # 🔧 Clean up markdown wrapping
-            if content.startswith("```json"):
-                content = re.sub(r"^```json\s*|\s*```$", "", content.strip())
-            elif content.startswith("```"):
-                content = re.sub(r"^```\s*|\s*```$", "", content.strip())
-
-            try:
-                analysis_result = json.loads(content)
-                print("✅ Successfully parsed OpenAI response")
-                return analysis_result
-            except json.JSONDecodeError as e:
-                print(f"❌ Error parsing JSON: {e}")
-                print(f"Raw content: {content}")
-                return {"error": "Invalid JSON format", "raw_content": content}
-        else:
-            error_msg = f"OpenRouter API error: {response.status_code} - {response.text}"
-            print(f"❌ {error_msg}")
-            return {"error": error_msg}
-
-    except Exception as e:
-        error_msg = f"❌ Fatal error: {str(e)}"
-        print(error_msg)
         return {"error": error_msg} 
