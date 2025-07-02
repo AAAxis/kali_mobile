@@ -1,6 +1,6 @@
 import requests
-from .utils import process_ingredient_nutrition_data
-from .service import analyze_meal_image_v1_service
+from utils import process_ingredient_nutrition_data
+from service import analyze_meal_image_v1_service
 from firebase_functions import https_fn
 
 BASE_URL = "http://127.0.0.1:8000"

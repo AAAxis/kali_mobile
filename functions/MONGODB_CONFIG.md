@@ -131,3 +131,9 @@ This will test:
 1. Check if collections exist in your MongoDB database
 2. Verify user permissions for the database
 3. Check collection names in environment variables 
+
+cd D:\data\github\kali_mobile\functions
+python .\fastapi_app.py
+python .\test_mongodb.py
+python .\test_services.py
+python .\test_ingredient_functions.py

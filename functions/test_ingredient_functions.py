@@ -5,7 +5,7 @@ Test script for ingredient-related MongoDB functions
 
 import sys
 import os
-from config import (
+from mongodb_config import (
     find_ingredient, 
     find_ingredient_by_category, 
     find_ingredient_nutrition, 
