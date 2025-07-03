@@ -65,4 +65,4 @@ class DefaultFirebaseOptions {
     storageBucket: 'kaliai-6dff9.firebasestorage.app',
     iosBundleId: 'com.theholylabs.kaliai',
   );
-}
+} 
