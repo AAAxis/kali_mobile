@@ -10,6 +10,7 @@ import 'dart:io';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:uuid/uuid.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 class CameraScreen extends StatefulWidget {
   final List<Meal>? meals;
@@ -539,11 +540,116 @@ class _CameraScreenState extends State<CameraScreen>
   @override
   Widget build(BuildContext context) {
     if (!_isPermissionGranted) {
-      return const Center(child: Text('Camera permission not granted'));
+      return Scaffold(
+        backgroundColor: Colors.white,
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Camera Icon
+                Icon(
+                  Icons.camera_alt_outlined,
+                  size: 80,
+                  color: Colors.black,
+                ),
+                const SizedBox(height: 24),
+                // Title
+                Text(
+                  'camera.permission_required'.tr(),
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                // Description
+                Text(
+                  'camera.permission_description'.tr(),
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.black87,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 32),
+                // Grant Permission Button
+                ElevatedButton(
+                  onPressed: () async {
+                    final status = await Permission.camera.request();
+                    if (status.isGranted) {
+                      setState(() => _isPermissionGranted = true);
+                      await _initializeCamera();
+                    } else {
+                      // Show settings dialog if permission is permanently denied
+                      if (status.isPermanentlyDenied && mounted) {
+                        showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: Text('camera.settings_required'.tr()),
+                            content: Text('camera.settings_description'.tr()),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: Text('camera.cancel'.tr()),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  openAppSettings();
+                                  Navigator.pop(context);
+                                },
+                                child: Text('camera.open_settings'.tr()),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.black,
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: Text(
+                    'camera.grant_access'.tr(),
+                    style: TextStyle(fontSize: 16),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Back Button
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    'camera.go_back'.tr(),
+                    style: TextStyle(
+                      color: Colors.black54,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
     }
 
     if (!_isCameraInitialized) {
-      return const Center(child: CircularProgressIndicator());
+      return const Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: CircularProgressIndicator(
+            color: Colors.white,
+          ),
+        ),
+      );
     }
 
     return Scaffold(

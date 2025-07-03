@@ -1,6 +1,5 @@
 {
   "wizard": {
-
     "how_old_are_you": "How old are you?",
     "choose_language": "Choose your language",
     "select_language": "Select your preferred language",
@@ -536,8 +535,23 @@
     "calories": "Calories"
   },
   "nutrition": {
-    "protein_left": "protein left",
-    "carbs_left": "carbs left",
-    "fats_left": "fats left"
+    "calories_left": "Calories left",
+    "calories_over": "Calories over",
+    "protein_left": "Protein left",
+    "carbs_left": "Carbs left",
+    "fats_left": "Fats left",
+    "protein_over": "Protein over",
+    "carbs_over": "Carbs over",
+    "fats_over": "Fats over"
+  },
+  "camera": {
+    "permission_required": "Camera Access Required",
+    "permission_description": "To analyze your meals, we need permission to use your camera. This helps us provide accurate nutritional information.",
+    "grant_access": "Grant Camera Access",
+    "go_back": "Go Back",
+    "settings_required": "Camera Permission Required",
+    "settings_description": "Please enable camera access in your device settings to use this feature.",
+    "open_settings": "Open Settings",
+    "cancel": "Cancel"
   }
 }

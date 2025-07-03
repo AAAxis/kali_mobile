@@ -52,7 +52,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       setState(() {
+        userName = user.displayName ?? user.email?.split('@')[0] ?? 'User';
         email = user.email ?? 'No email';
+      });
+    } else {
+      setState(() {
+        userName = 'Foodiex';
+        email = 'No email';
       });
     }
   }
@@ -305,7 +311,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ? FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser!.uid).snapshots()
                     : null,
                   builder: (context, snapshot) {
-                    String userName = this.userName;
+                    String userName = FirebaseAuth.instance.currentUser?.displayName ?? 
+                                    FirebaseAuth.instance.currentUser?.email?.split('@')[0] ?? 
+                                    'User';
                     String? profileImageUrl;
                     if (snapshot.hasData && snapshot.data!.exists) {
                       final data = snapshot.data!.data() as Map<String, dynamic>?;

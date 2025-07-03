@@ -533,9 +533,23 @@
     "calories": "קלוריות"
   },
   "nutrition": {
-    "protein_left": "חלבון שנותר",
-    "carbs_left": "פחמימות שנותרו",
-    "fats_left": "שומנים שנותרו",
-    "calories_left": "קלוריות שנותרו"
+    "calories_left": "קלוריות נותרו",
+    "calories_over": "קלוריות מעל",
+    "protein_left": "חלבון נותר",
+    "carbs_left": "פחמימות נותרו",
+    "fats_left": "שומנים נותרו",
+    "protein_over": "חלבון מעל",
+    "carbs_over": "פחמימות מעל",
+    "fats_over": "שומנים מעל"
+  },
+  "camera": {
+    "permission_required": "נדרשת גישה למצלמה",
+    "permission_description": "כדי לנתח את הארוחות שלך, אנחנו צריכים גישה למצלמה שלך. זה עוזר לנו לספק מידע תזונתי מדויק.",
+    "grant_access": "אשר גישה למצלמה",
+    "go_back": "חזור",
+    "settings_required": "נדרשת הרשאת מצלמה",
+    "settings_description": "אנא אפשר גישה למצלמה בהגדרות המכשיר כדי להשתמש בתכונה זו.",
+    "open_settings": "פתח הגדרות",
+    "cancel": "ביטול"
   }
 }

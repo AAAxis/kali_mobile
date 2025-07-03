@@ -16,6 +16,7 @@ import 'dart:io';
 import '../../../core/services/auth_service.dart';
 import 'package:go_router/go_router.dart';
 import 'package:easy_localization/easy_localization.dart';
+import '../settings/notifications_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final bool isAnalyzing;
@@ -320,34 +321,22 @@ class DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           const SizedBox(width: 12),
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert, color: Colors.black),
-            onSelected: (value) async {
-              if (value == 'settings') {
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined, color: Colors.black, size: 28),
+            onPressed: () {
+              final user = FirebaseAuth.instance.currentUser;
+              if (user != null) {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                  MaterialPageRoute(builder: (context) => const NotificationsScreen()),
                 );
-              } else if (value == 'logout') {
-                await FirebaseAuth.instance.signOut();
-                if (mounted) {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (context) => const LoginScreen()),
-                  );
-                }
+              } else {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LoginScreen()),
+                );
               }
             },
-            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-              const PopupMenuItem<String>(
-                value: 'settings',
-                child: Text('Settings'),
-              ),
-              const PopupMenuItem<String>(
-                value: 'logout',
-                child: Text('Logout'),
-              ),
-            ],
           ),
         ],
       ),
