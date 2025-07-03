@@ -477,7 +477,12 @@ class _PantrySectionState extends State<PantrySection> {
                     return await showDialog<bool>(
                       context: context,
                       builder: (context) => AlertDialog(
-                        title: Text('dashboard.delete_analysis'.tr()),
+                        title: Text(
+                          'dashboard.delete_analysis'.tr(),
+                          style: TextStyle(
+                            color: Colors.black,
+                          ),
+                        ),
                         content: Text('dashboard.delete_confirm'.tr()),
                         actions: [
                           TextButton(

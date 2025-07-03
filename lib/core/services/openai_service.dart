@@ -5,11 +5,6 @@ import 'dart:io';
 import 'compression_service.dart';
 
 class OpenAIService {
-  static const String _baseUrl = 'https://api.openai.com/v1';
-  static const String _apiKey = 'YOUR_API_KEY_HERE'; // This should be configured securely
-
-  // Use Firebase Functions HTTP endpoints
-  
   /// Analyze meal image using Firebase Functions with URL
   static Future<Map<String, dynamic>> analyzeMealImage({
     required String imageUrl,
@@ -19,9 +14,8 @@ class OpenAIService {
     try {
       print('🔥 Starting Firebase Functions analysis for image: $imageName');
       
-      
       // Get the function URL - you'll need to replace with your actual project URL
-      final functionUrl = 'https://analyze-refrigerator-7jk47pqmda-uc.a.run.app';
+      final functionUrl = 'https://us-central1-kaliai-6dff9.cloudfunctions.net/analyze_meal_image_v1';
       
       // Prepare the request payload to match your function's expected format
       final requestData = {
@@ -95,8 +89,7 @@ class OpenAIService {
       print('🔥 Image compressed and encoded as base64, size: ${base64Image.length} characters');
       print('📏 Compressed file size: ${await compressedFile.length()} bytes');
       
-      // Your Firebase Function is an HTTP function, so we need to call it via HTTP
-      final functionUrl = 'https://analyze-refrigerator-7jk47pqmda-uc.a.run.app';
+      final functionUrl = 'https://us-central1-kaliai-6dff9.cloudfunctions.net/analyze_meal_image_v1';
       
       // Prepare the request payload to match your function's expected format
       final requestData = {
@@ -155,31 +148,19 @@ class OpenAIService {
   
   /// Transform Firebase Function response to match the expected format in your app
   static Map<String, dynamic> _transformFirebaseResponse(Map<String, dynamic> firebaseResponse) {
-    // Your Firebase Function now returns English-only data:
-    // {
-    //   'mealName': 'English meal name',
-    //   'estimatedCalories': number,
-    //   'macros': {'proteins': 'Xg', 'carbohydrates': 'Xg', 'fats': 'Xg'},
-    //   'ingredients': ['ingredient1', 'ingredient2', ...],
-    //   'healthiness': 'healthy|medium|unhealthy',
-    //   'health_assessment': 'text',
-    //   'source': 'url'
-    // }
-    
     try {
-      // Transform to match your app's expected format with English-only data
-      // Translation will be handled client-side using your translation services
+  
       final englishMealName = firebaseResponse['mealName'] ?? 'Unknown Meal';
       final englishIngredients = firebaseResponse['ingredients'] ?? ['Unknown ingredients'];
       final englishHealthAssessment = firebaseResponse['health_assessment'] ?? 'No assessment available';
       
       final transformed = <String, dynamic>{
-        'mealName': englishMealName, // Store only English string, translate on frontend
+        'mealName': englishMealName,
         'calories': _parseCalories(firebaseResponse['estimatedCalories']),
         'macros': _parseMacros(firebaseResponse['macros']),
-        'ingredients': List<String>.from(englishIngredients), // Store only English list, translate on frontend
+        'ingredients': List<String>.from(englishIngredients),
         'healthiness': firebaseResponse['healthiness'] ?? 'N/A',
-        'healthiness_explanation': englishHealthAssessment, // Store only English string, translate on frontend
+        'healthiness_explanation': englishHealthAssessment,
         'source': firebaseResponse['source'] ?? 'https://fdc.nal.usda.gov/',
         
         // Add additional fields that your app expects
@@ -202,19 +183,19 @@ class OpenAIService {
         'detailedIngredients': _parseDetailedIngredients(firebaseResponse['detailedIngredients']),
       };
       
-      print('🔄 Transformed Firebase response successfully (English-only)');
+      print('🔄 Transformed Firebase response successfully');
       return transformed;
       
     } catch (e) {
       print('❌ Error transforming Firebase response: $e');
       // Return a safe fallback
       return {
-        'mealName': 'Analysis Error', // Store only English string
+        'mealName': 'Analysis Error',
         'calories': 200.0,
         'macros': {'proteins': 10.0, 'carbs': 25.0, 'fats': 8.0},
-        'ingredients': ['Analysis failed'], // Store only English list
+        'ingredients': ['Analysis failed'],
         'healthiness': 'N/A',
-        'healthiness_explanation': 'Analysis failed', // Store only English string
+        'healthiness_explanation': 'Analysis failed',
         'source': 'https://fdc.nal.usda.gov/',
         'nutrients': {
           'fiber': 0.0,
@@ -238,7 +219,6 @@ class OpenAIService {
   static double _parseCalories(dynamic calories) {
     if (calories is num) {
       final caloriesValue = calories.toDouble();
-      // If calories is 0, provide a reasonable default
       if (caloriesValue == 0) {
         print('⚠️ Calories from Firebase is 0, using default 200');
         return 200.0;
@@ -399,35 +379,5 @@ class OpenAIService {
     }
     
     throw Exception('Firebase Functions base64 analysis failed after $maxRetries attempts');
-  }
-
-  static Future<Map<String, dynamic>?> analyzeImage(String imageUrl) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/analyze'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $_apiKey',
-        },
-        body: jsonEncode({
-          'image_url': imageUrl,
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return {
-          'name': data['name'] ?? 'Unknown Food',
-          'calories': data['calories']?.toDouble() ?? 0.0,
-          'protein': data['protein']?.toDouble() ?? 0.0,
-          'carbs': data['carbs']?.toDouble() ?? 0.0,
-          'fat': data['fat']?.toDouble() ?? 0.0,
-        };
-      }
-      return null;
-    } catch (e) {
-      print('Error analyzing image: $e');
-      return null;
-    }
   }
 } 

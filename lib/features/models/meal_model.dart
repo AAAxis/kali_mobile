@@ -587,9 +587,21 @@ class Meal {
   }
 
   String getMealName(String locale) {
-    // Default implementation returns the name
-    // Override in subclass if needed
-    return name;
+    if (mealName is Map) {
+      final nameMap = mealName as Map<String, dynamic>;
+      return nameMap[locale]?.toString()
+          ?? nameMap['en']?.toString()
+          ?? (fallbackName != null && fallbackName!.isNotEmpty
+              ? fallbackName!
+              : (name.isNotEmpty ? name : 'Unknown Meal'));
+    } else if (mealName is String && mealName.toString().isNotEmpty) {
+      return mealName.toString();
+    } else if (fallbackName != null && fallbackName!.isNotEmpty) {
+      return fallbackName!;
+    } else if (name.isNotEmpty) {
+      return name;
+    }
+    return 'Unknown Meal';
   }
 
   static Future<void> deleteFromLocalStorage(String mealId) async {

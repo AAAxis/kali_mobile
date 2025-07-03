@@ -57,8 +57,11 @@ class Wizard4 extends StatelessWidget {
               return Padding(
                 padding: EdgeInsets.only(bottom: 18.h),
                 child: GestureDetector(
-                  onTap: () => provider.selectGender(i),
-                  child: Container(
+                                onTap: () async {
+                provider.selectGender(i);
+                await provider.saveAllWizardData();
+              },
+              child: Container(
                     height: 66.h,
                     decoration: BoxDecoration(
                       color: colorScheme.surface,

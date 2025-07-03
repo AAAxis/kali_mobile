@@ -18,6 +18,8 @@ class Wizard10 extends StatelessWidget {
 
     final steps = [0.1, 0.8, 1.5];
     final current = provider.goalSpeed;
+    final selectedGoal = provider.selectedGoal ?? 0; // 0=lose, 1=maintain, 2=gain
+    final isGain = selectedGoal == 2;
 
     int getActiveIndex() {
       double minDiff = (current - steps[0]).abs();
@@ -35,9 +37,9 @@ class Wizard10 extends StatelessWidget {
     final active = getActiveIndex();
 
     String getAdvice() {
-      if (active == 0) return "You will lose weight very slow.";
-      if (active == 1) return "You will lose weight in a good speed!!";
-      return "You will lose weight super fast!";
+      if (active == 0) return isGain ? "You will gain weight very slow." : "You will lose weight very slow.";
+      if (active == 1) return isGain ? "You will gain weight in a good speed!!" : "You will lose weight in a good speed!!";
+      return isGain ? "You will gain weight super fast!" : "You will lose weight super fast!";
     }
 
     return SafeArea(
@@ -60,7 +62,7 @@ class Wizard10 extends StatelessWidget {
             ),
             SizedBox(height: 50.h),
             Text(
-              "${current.toStringAsFixed(1)} Kg",
+              "${current.toStringAsFixed(1)} Kg per week",
               style: AppTextStyles.headingLarge.copyWith(
                 color: colorScheme.onSurface,
                 fontWeight: FontWeight.bold,
@@ -107,7 +109,10 @@ class Wizard10 extends StatelessWidget {
                 min: steps.first,
                 max: steps.last,
                 divisions: 14,
-                onChanged: provider.setGoalSpeed,
+                onChanged: (value) async {
+                  provider.setGoalSpeed(value);
+                  await provider.saveAllWizardData();
+                },
               ),
             ),
 

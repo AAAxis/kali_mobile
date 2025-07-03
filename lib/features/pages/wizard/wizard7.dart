@@ -16,7 +16,7 @@ class Wizard7 extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     final isKg = provider.isKg;
-    final weight = provider.weight;
+    final weight = provider.targetWeight;
     final min = isKg ? 40.0 : 90.0;
     final max = isKg ? 150.0 : 330.0;
     final step = 0.1;
@@ -48,13 +48,19 @@ class Wizard7 extends StatelessWidget {
                 _UnitToggleButton(
                   label: "Lbs",
                   isActive: !isKg,
-                  onTap: () => provider.toggleUnit(false),
+                  onTap: () async {
+                    provider.toggleUnit(false);
+                    await provider.saveAllWizardData();
+                  },
                 ),
                 SizedBox(width: 18.w),
                 _UnitToggleButton(
                   label: "KGs",
                   isActive: isKg,
-                  onTap: () => provider.toggleUnit(true),
+                  onTap: () async {
+                    provider.toggleUnit(true);
+                    await provider.saveAllWizardData();
+                  },
                 ),
               ],
             ),
@@ -84,9 +90,10 @@ class Wizard7 extends StatelessWidget {
                   controller: provider.scrollController,
                   itemExtent: itemExtent,
                   physics: const FixedExtentScrollPhysics(),
-                  onSelectedItemChanged: (index) {
+                  onSelectedItemChanged: (index) async {
                     final value = min + (index * step);
-                    provider.setWeight(value);
+                    provider.setTargetWeight(value);
+                    await provider.saveAllWizardData();
                   },
                   childDelegate: ListWheelChildBuilderDelegate(
                     childCount: itemCount,

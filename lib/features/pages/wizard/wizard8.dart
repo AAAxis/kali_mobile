@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constant/app_animations.dart';
 import '../../../core/constant/constants.dart';
 import '../../../core/custom_widgets/wizard_button.dart';
@@ -10,17 +11,34 @@ import '../../../../core/constant/app_icons.dart';
 
 class Wizard8 extends StatelessWidget {
   final bool isGain;
-  final int kgs;
 
   const Wizard8({
     super.key,
     required this.isGain,
-    required this.kgs,
   });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    
+    return FutureBuilder<double>(
+      future: _calculateWeightDifference(),
+      builder: (context, snapshot) {
+        final weightDifference = snapshot.data ?? 0.0;
+        
+        return _buildContent(context, colorScheme, weightDifference);
+      },
+    );
+  }
+
+  Future<double> _calculateWeightDifference() async {
+    final prefs = await SharedPreferences.getInstance();
+    final currentWeight = prefs.getDouble('wizard_weight') ?? 70.0;
+    final targetWeight = prefs.getDouble('wizard_target_weight') ?? 65.0;
+    return (targetWeight - currentWeight).abs();
+  }
+
+  Widget _buildContent(BuildContext context, ColorScheme colorScheme, double weightDifference) {
 
     return SafeArea(
       child: Stack(
@@ -80,7 +98,7 @@ class Wizard8 extends StatelessWidget {
                         ),
                       ),
                       TextSpan(
-                        text: "$kgs Kgs",
+                        text: "${weightDifference.toStringAsFixed(1)} kg",
                         style: AppTextStyles.headingMedium.copyWith(
                           color: Colors.orange[700],
                           fontWeight: FontWeight.bold,

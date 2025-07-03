@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'dart:math';
 
 class CalorieGauge extends StatelessWidget {
+  final String title;
+  final Widget icon;
+  final String unit;
   final double currentValue;
   final double maxValue;
   final int segments;
@@ -14,6 +17,9 @@ class CalorieGauge extends StatelessWidget {
 
   const CalorieGauge({
     super.key,
+    this.title = 'Calories',
+    this.icon = const Icon(Icons.local_fire_department_rounded, color: Colors.redAccent),
+    this.unit = 'kcal',
     required this.currentValue,
     required this.maxValue,
     this.segments = 24,
@@ -39,16 +45,15 @@ class CalorieGauge extends StatelessWidget {
             // Header row
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: const [
-                Icon(Icons.local_fire_department_rounded,
-                    color: Colors.redAccent),
-                SizedBox(width: 4),
-                Text("Calories",
-                    style: TextStyle(
+              children: [
+                icon,
+                const SizedBox(width: 4),
+                Text(title,
+                    style: const TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 16,
                         color: Colors.black87)),
-                SizedBox(width: 4),
+                const SizedBox(width: 4),
                 Icon(Icons.edit, size: 16, color: Colors.grey),
               ],
             ),
@@ -73,7 +78,7 @@ class CalorieGauge extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(top: 28),
                   child: Text(
-                    "${currentValue.toInt()}g",
+                    "${currentValue.toInt()}$unit",
                     style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w600,

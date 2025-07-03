@@ -38,7 +38,7 @@ class WizardPager extends StatelessWidget {
       const Wizard5(),
       const Wizard6(),
       const Wizard7(),
-      const Wizard8(isGain: true, kgs: 17),
+      const Wizard8(isGain: true),
       const Wizard9(),
       const Wizard10(),
       const LoadingPage(),

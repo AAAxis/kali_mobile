@@ -7,6 +7,8 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../features/providers/wizard_provider.dart';
 import '../../pages/wizard/wizard_pager.dart';
+import 'dart:convert';
+import 'package:flutter/services.dart';
 
 class UserInfoScreen extends StatefulWidget {
   @override
@@ -142,6 +144,77 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
       } catch (e) {
         print('[Firestore] Error updating displayName: $e');
       }
+    }
+  }
+
+  Future<void> _showWizardDataAsJson() async {
+    try {
+      final wizardData = await WizardProvider.getWizardDataAsJson();
+      final jsonString = const JsonEncoder.withIndent('  ').convert(wizardData);
+      
+      if (!mounted) return;
+      
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: Colors.white,
+          title: Text(
+            'Wizard Data (JSON)',
+            style: const TextStyle(
+              color: Colors.black87,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: Container(
+            width: double.maxFinite,
+            height: 400,
+            child: SingleChildScrollView(
+              child: SelectableText(
+                jsonString,
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              child: Text(
+                'Copy',
+                style: const TextStyle(color: Colors.blue),
+              ),
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: jsonString));
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Wizard data copied to clipboard'),
+                    backgroundColor: Colors.green,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              },
+            ),
+            TextButton(
+              child: Text(
+                'Close',
+                style: const TextStyle(color: Colors.grey),
+              ),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error loading wizard data: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -344,6 +417,49 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
                             color: Colors.grey.shade400,
                           ),
                           onTap: _restartWizard,
+                        ),
+                      ),
+
+                      const SizedBox(height: 8),
+                      
+                      // View Wizard Data as JSON (tile style)
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: ListTile(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          leading: const Icon(
+                            Icons.data_object,
+                            color: Colors.blue,
+                            size: 24,
+                          ),
+                          title: Text(
+                            'View Wizard Data',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          subtitle: Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              'Display all wizard data as JSON',
+                              style: const TextStyle(
+                                color: Colors.black54,
+                              ),
+                            ),
+                          ),
+                          trailing: Icon(
+                            Icons.arrow_forward_ios,
+                            size: 16,
+                            color: Colors.grey.shade400,
+                          ),
+                          onTap: _showWizardDataAsJson,
                         ),
                       ),
 

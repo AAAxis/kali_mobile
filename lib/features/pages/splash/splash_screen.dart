@@ -34,19 +34,19 @@ class _SplashScreenState extends State<SplashScreen> {
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
-      backgroundColor: colorScheme.primary,
+      backgroundColor: Colors.white,
       body: Center(
         child: Text(
-          'KALI',
+          'CALZO',
           style:
               textTheme.headlineLarge?.copyWith(
-                color: colorScheme.onPrimary,
+                color: Colors.black,
                 fontSize: 36.sp,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 2,
               ) ??
               AppTextStyles.headingLarge.copyWith(
-                color: colorScheme.onPrimary,
+                color: Colors.black,
                 fontSize: 36.sp,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 2,

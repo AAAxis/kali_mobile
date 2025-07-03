@@ -4,12 +4,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constant/app_animations.dart';
 import '../../../core/constant/app_icons.dart';
 import '../../../core/constant/constants.dart';
-import '../../../core/custom_widgets/calorie_gauage.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../features/providers/wizard_provider.dart';
 import 'package:provider/provider.dart';
 import '../../../core/custom_widgets/wizard_button.dart';
+import '../../../core/services/calculation_service.dart';
 import 'wizard18.dart';  // Add import for Wizard18
+import '../../../core/custom_widgets/calorie_gauage.dart';
 
 class Wizard11 extends StatefulWidget {
   const Wizard11({super.key});
@@ -27,17 +28,31 @@ class _Wizard11State extends State<Wizard11> {
   @override
   void initState() {
     super.initState();
-    _loadNutritionGoals();
+    _calculateAndLoadNutritionGoals();
   }
 
-  Future<void> _loadNutritionGoals() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      calories = prefs.getDouble('nutrition_goal_calories') ?? 2000;
-      proteins = prefs.getDouble('nutrition_goal_protein') ?? 150;
-      carbs = prefs.getDouble('nutrition_goal_carbs') ?? 300;
-      fats = prefs.getDouble('nutrition_goal_fats') ?? 65;
-    });
+  Future<void> _calculateAndLoadNutritionGoals() async {
+    try {
+      // Calculate nutrition goals based on wizard data
+      final calculatedGoals = await CalculationService.calculateNutritionGoals();
+      
+      setState(() {
+        calories = calculatedGoals['calories']!;
+        proteins = calculatedGoals['protein']!;
+        carbs = calculatedGoals['carbs']!;
+        fats = calculatedGoals['fats']!;
+      });
+    } catch (e) {
+      print('Error calculating nutrition goals: $e');
+      // Fallback to default values
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        calories = prefs.getDouble('nutrition_goal_calories') ?? 2000;
+        proteins = prefs.getDouble('nutrition_goal_protein') ?? 150;
+        carbs = prefs.getDouble('nutrition_goal_carbs') ?? 300;
+        fats = prefs.getDouble('nutrition_goal_fats') ?? 65;
+      });
+    }
   }
 
   Future<void> _saveNutritionGoals() async {
@@ -46,6 +61,58 @@ class _Wizard11State extends State<Wizard11> {
     await prefs.setDouble('nutrition_goal_protein', proteins);
     await prefs.setDouble('nutrition_goal_carbs', carbs);
     await prefs.setDouble('nutrition_goal_fats', fats);
+  }
+
+  Future<Map<String, dynamic>> _calculateTimeline() async {
+    final prefs = await SharedPreferences.getInstance();
+    final currentWeight = prefs.getDouble('wizard_weight') ?? 70.0;
+    final targetWeight = prefs.getDouble('wizard_target_weight') ?? 65.0;
+    final goal = prefs.getInt('wizard_goal') ?? 0;
+    final goalSpeed = prefs.getDouble('wizard_goal_speed') ?? 0.8;
+    final isMetric = prefs.getBool('wizard_is_metric') ?? true;
+    
+    // Debug print
+    print('🔍 Timeline Calculation Debug:');
+    print('  - Current Weight: $currentWeight kg');
+    print('  - Target Weight: $targetWeight kg');
+    print('  - Weight Difference: ${(targetWeight - currentWeight).abs()} kg');
+    print('  - Goal Speed: $goalSpeed kg/week');
+    print('  - Goal: $goal (0=lose, 1=maintain, 2=gain)');
+    
+    // For maintain weight, no timeline needed
+    if (goal == 1) {
+      return {
+        'goal': goal,
+        'weightDifference': 0.0,
+        'targetDate': DateTime.now(),
+      };
+    }
+    
+    // For lose/gain weight, use the actual target weight from wizard
+    final timeline = CalculationService.calculateTimeline(
+      currentWeight: currentWeight,
+      targetWeight: targetWeight,
+      goalSpeed: goalSpeed,
+      isMetric: isMetric,
+    );
+    
+    // Debug print timeline results
+    print('  - Weeks to Goal: ${timeline['weeksToGoal']}');
+    print('  - Days to Goal: ${timeline['daysToGoal']}');
+    print('  - Target Date: ${timeline['targetDate']}');
+    
+    return {
+      ...timeline,
+      'goal': goal,
+    };
+  }
+
+  String _formatDate(DateTime date) {
+    final months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return '${months[date.month - 1]} ${date.day}';
   }
 
   Future<void> _showEditDialog(String title, double currentValue, Function(double) onSave) async {
@@ -164,33 +231,70 @@ class _Wizard11State extends State<Wizard11> {
                   ),
 
                   SizedBox(height: 18.h),
-                  Column(
-                    children: [
-                      Text(
-                        "You should lose:",
-                        style: AppTextStyles.bodyLarge.copyWith(
-                            color: colorScheme.onSurface, fontSize: 20),
-                      ),
-                      SizedBox(height: 5.h),
-                      Card(
-                        margin: EdgeInsets.symmetric(horizontal: 70.sp),
-                        elevation: 5,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(50.r)),
-                        child: Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Text(
-                              "10.0 Kgs by July 31",
+                  FutureBuilder<Map<String, dynamic>>(
+                    future: _calculateTimeline(),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasData) {
+                        final timeline = snapshot.data!;
+                        final goal = timeline['goal'] as int;
+                        final weightDifference = timeline['weightDifference'] as double;
+                        final targetDate = timeline['targetDate'] as DateTime;
+                        final goalText = goal == 0 ? 'lose' : goal == 1 ? 'maintain' : 'gain';
+                        
+                        return Column(
+                          children: [
+                            Text(
+                              "You should $goalText:",
                               style: AppTextStyles.bodyLarge.copyWith(
-                                fontWeight: FontWeight.w600,
-                                color: colorScheme.onSurface,
+                                  color: colorScheme.onSurface, fontSize: 20),
+                            ),
+                            SizedBox(height: 5.h),
+                            Card(
+                              margin: EdgeInsets.symmetric(horizontal: 70.sp),
+                              elevation: 5,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(50.r)),
+                              child: Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(8.0),
+                                  child: Column(
+                                    children: [
+                                      Text(
+                                        "${weightDifference.toStringAsFixed(1)} kg by ${_formatDate(targetDate)}",
+                                        style: AppTextStyles.bodyLarge.copyWith(
+                                          fontWeight: FontWeight.w600,
+                                          color: colorScheme.onSurface,
+                                        ),
+                                      ),
+                                      SizedBox(height: 4.h),
+                                      Text(
+                                        "(${(timeline['weeksToGoal'] as double).toStringAsFixed(1)} weeks)",
+                                        style: AppTextStyles.bodyMedium.copyWith(
+                                          color: colorScheme.onSurface.withOpacity(0.7),
+                                          fontSize: 14.sp,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                        ),
-                      ),
-                    ],
+                          ],
+                        );
+                      } else {
+                        return Column(
+                          children: [
+                            Text(
+                              "Calculating your goal...",
+                              style: AppTextStyles.bodyLarge.copyWith(
+                                  color: colorScheme.onSurface, fontSize: 20),
+                            ),
+                            SizedBox(height: 5.h),
+                            const CircularProgressIndicator(),
+                          ],
+                        );
+                      }
+                    },
                   ),
 
                   SizedBox(height: 28.h),
@@ -222,70 +326,61 @@ class _Wizard11State extends State<Wizard11> {
                           ),
                           SizedBox(height: 16.h),
 
-                          // 2x2 CalorieGauge Grid
-                          GridView.count(
-                            crossAxisCount: 2,
-                            crossAxisSpacing: 12.w,
-                            mainAxisSpacing: 16.h,
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            childAspectRatio: 1.1,
+                          // 2x2 Nutrition Cards Grid
+                          Column(
                             children: [
-                              GestureDetector(
-                                onTap: () async {
-                                  await _showEditDialog('Calories', calories, (value) {
-                                    setState(() => calories = value);
-                                    _saveNutritionGoals();
-                                  });
-                                },
-                                child: CalorieGauge(
-                                  currentValue: proteins,
-                                  maxValue: 200,
-                                  filledColor: Colors.black87,
-                                  unfilledColor: Colors.grey,
-                                ),
+                              // Row 1: Calories and Proteins
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: CalorieGauge(
+                                      title: 'Calories',
+                                      icon: Icon(Icons.local_fire_department_rounded, color: Colors.redAccent),
+                                      unit: 'kcal',
+                                      currentValue: calories,
+                                      maxValue: 3000,
+                                      filledColor: Colors.orange,
+                                    ),
+                                  ),
+                                  SizedBox(width: 12.w),
+                                  Expanded(
+                                    child: CalorieGauge(
+                                      title: 'Protein',
+                                      icon: Icon(Icons.fitness_center, color: Colors.green),
+                                      unit: 'g',
+                                      currentValue: proteins,
+                                      maxValue: 300,
+                                      filledColor: Colors.green,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              GestureDetector(
-                                onTap: () async {
-                                  await _showEditDialog('Proteins', proteins, (value) {
-                                    setState(() => proteins = value);
-                                    _saveNutritionGoals();
-                                  });
-                                },
-                                child: CalorieGauge(
-                                  currentValue: proteins,
-                                  maxValue: 200,
-                                  filledColor: Colors.green,
-                                  unfilledColor: Colors.grey,
-                                ),
-                              ),
-                              GestureDetector(
-                                onTap: () async {
-                                  await _showEditDialog('Carbs', carbs, (value) {
-                                    setState(() => carbs = value);
-                                    _saveNutritionGoals();
-                                  });
-                                },
-                                child: CalorieGauge(
-                                  currentValue: carbs,
-                                  maxValue: 100,
-                                  filledColor: Colors.amber,
-                                  unfilledColor: Colors.grey,
-                                ),
-                              ),
-                              GestureDetector(
-                                onTap: () async {
-                                  await _showEditDialog('Fats', fats, (value) {
-                                    setState(() => fats = value);
-                                    _saveNutritionGoals();
-                                  });
-                                },
-                                child: CalorieGauge(
-                                  currentValue: fats,
-                                  maxValue: 150,
-                                  filledColor: Colors.red,
-                                  unfilledColor: Colors.grey,
-                                ),
+                              SizedBox(height: 16.h),
+                              // Row 2: Carbs and Fats
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: CalorieGauge(
+                                      title: 'Carbs',
+                                      icon: Icon(Icons.bakery_dining, color: Colors.amber),
+                                      unit: 'g',
+                                      currentValue: carbs,
+                                      maxValue: 500,
+                                      filledColor: Colors.amber,
+                                    ),
+                                  ),
+                                  SizedBox(width: 12.w),
+                                  Expanded(
+                                    child: CalorieGauge(
+                                      title: 'Fats',
+                                      icon: Icon(Icons.opacity, color: Colors.red),
+                                      unit: 'g',
+                                      currentValue: fats,
+                                      maxValue: 200,
+                                      filledColor: Colors.red,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),

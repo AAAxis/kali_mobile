@@ -41,8 +41,8 @@ Future<void> _initializeRevenueCat() async {
     PurchasesConfiguration configuration;
     
     // Replace with your actual RevenueCat API keys
-    const String appleApiKey = "your_apple_api_key_here";
-    const String googleApiKey = "your_google_api_key_here";
+    const String appleApiKey = "appl_tcPOzrHZKuYPAreNJQMnNOuhVYa";
+    const String googleApiKey = "goog_xrdRhQMmrFhWRVAsIHLBBnSiIfZ";
     
     if (Platform.isIOS) {
       configuration = PurchasesConfiguration(appleApiKey);

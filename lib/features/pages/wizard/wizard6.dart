@@ -60,7 +60,10 @@ class Wizard6 extends StatelessWidget {
               return Padding(
                 padding: EdgeInsets.only(bottom: 18.h),
                 child: GestureDetector(
-                  onTap: () => provider.selectDiet(i),
+                  onTap: () async {
+                    provider.selectDiet(i);
+                    await provider.saveAllWizardData();
+                  },
                   child: Container(
                     height: 66.h,
                     decoration: BoxDecoration(

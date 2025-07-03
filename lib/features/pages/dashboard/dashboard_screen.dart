@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -7,13 +6,11 @@ import '../../../core/services/nutrition_database_service.dart';
 import '../../../core/services/paywall_service.dart';
 import '../../../core/custom_widgets/nutrition_summary.dart';
 import '../../../core/custom_widgets/pantry_section.dart';
-import '../auth/login_screen.dart';
 import '../settings/settings_screen.dart';
 import '../camera/camera_screen.dart';
 import '../../models/meal_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
-import '../../../core/services/auth_service.dart';
 import 'package:go_router/go_router.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../settings/notifications_screen.dart';
@@ -37,36 +34,23 @@ class DashboardScreenState extends State<DashboardScreen> {
   bool _isLoading = true;
   final ImagePicker picker = ImagePicker();
   bool _isAnalyzing = false;
-  String userName = '';
+  String userName = 'User';
   DateTime? selectedDate; // null means show all meals, otherwise filter by date
 
   @override
   void initState() {
     super.initState();
     _loadUserName();
-    loadMealsFromFirebase();
+    loadMealsFromStorage();
     // Initialize nutrition database
     NutritionDatabaseService.initialize();
-    // Listen to auth state changes
-    FirebaseAuth.instance.authStateChanges().listen((User? user) {
-      if (mounted) {
-        handleAuthStateChange();
-      }
-    });
   }
 
   Future<void> _loadUserName() async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        setState(() {
-          userName = user.displayName ?? user.email?.split('@')[0] ?? 'User';
-        });
-      } else {
-        setState(() {
-          userName = 'Calzo';
-        });
-      }
+      setState(() {
+        userName = 'Calzo'; // Default username since no auth
+      });
     } catch (e) {
       print('Error loading user name: $e');
       setState(() {
@@ -107,32 +91,15 @@ class DashboardScreenState extends State<DashboardScreen> {
     ).toList();
   }
 
-  Future<void> loadMealsFromFirebase() async {
+  Future<void> loadMealsFromStorage() async {
     try {
       // Only show loading if we don't have meals yet (avoid showing loading on refresh)
       if (meals.isEmpty) {
         setState(() => _isLoading = true);
       }
       
-      final user = FirebaseAuth.instance.currentUser;
-      List<Meal> loadedMeals = [];
-      
-      if (user != null) {
-        // Load from Firebase for authenticated users
-        final snapshot = await FirebaseFirestore.instance
-            .collection('analyzed_meals')
-            .where('userId', isEqualTo: user.uid)
-            .orderBy('timestamp', descending: true)
-            .get();
-
-        loadedMeals = snapshot.docs.map((doc) {
-          final data = doc.data();
-          return Meal.fromMap(data, doc.id);
-        }).toList();
-      } else {
-        // Load from local storage for non-authenticated users
-        loadedMeals = await Meal.loadFromLocalStorage();
-      }
+      // Load from local storage only
+      List<Meal> loadedMeals = await Meal.loadFromLocalStorage();
 
       // Apply translation to existing meals if needed
       final translatedMeals = await _translateExistingMeals(loadedMeals);
@@ -154,24 +121,6 @@ class DashboardScreenState extends State<DashboardScreen> {
     return meals;
   }
 
-  // Handle user logout
-  void _handleLogout() async {
-    try {
-      await AuthService.signOut();
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error during logout: $e')),
-        );
-      }
-    }
-  }
-
   Future<void> refreshDashboard() async {
     // Preserve analyzing meals during refresh
     final analyzingMeals = meals.where((meal) => meal.isAnalyzing).toList();
@@ -183,7 +132,7 @@ class DashboardScreenState extends State<DashboardScreen> {
       setState(() => _isLoading = true);
     }
     
-    await loadMealsFromFirebase();
+    await loadMealsFromStorage();
     
     // Re-add analyzing meals that weren't in the loaded data
     if (analyzingMeals.isNotEmpty) {
@@ -208,27 +157,13 @@ class DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
-  Future<void> handleAuthStateChange() async {
-    await _loadUserName();
-    await loadMealsFromFirebase();
-  }
-
   Future<void> _deleteMeal(String mealId) async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        // Delete from Firebase
-        await FirebaseFirestore.instance
-            .collection('analyzed_meals')
-            .doc(mealId)
-            .delete();
-      } else {
-        // Delete from local storage
-        await Meal.deleteFromLocalStorage(mealId);
-      }
+      // Delete from local storage only
+      await Meal.deleteFromLocalStorage(mealId);
       
       // Refresh the meals list
-      await loadMealsFromFirebase();
+      await loadMealsFromStorage();
     } catch (e) {
       print('Error deleting meal: $e');
     }
@@ -242,73 +177,25 @@ class DashboardScreenState extends State<DashboardScreen> {
           GestureDetector(
             onTap: () async {
               print('🔍 Profile icon tapped');
-              final user = FirebaseAuth.instance.currentUser;
-              print('🔍 Current user: ${user?.uid ?? 'null'}');
-              if (user != null) {
-                print('🔍 User authenticated, going to settings');
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => SettingsScreen()),
-                );
-                // Refresh dashboard when returning from settings (in case language changed)
-                await refreshDashboard();
-                                } else {
-                    print('🔍 User not authenticated, going to login');
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const LoginScreen()),
-                    );
-                  }
+              print('🔍 Going to settings');
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => SettingsScreen()),
+              );
+              // Refresh dashboard when returning from settings (in case language changed)
+              await refreshDashboard();
             },
-            child: StreamBuilder<DocumentSnapshot>(
-              stream: FirebaseAuth.instance.currentUser != null
-                ? FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser!.uid).snapshots()
-                : null,
-              builder: (context, snapshot) {
-                String? profileImageUrl;
-                if (snapshot.hasData && snapshot.data!.exists) {
-                  final data = snapshot.data!.data() as Map<String, dynamic>?;
-                  if (data != null) {
-                    profileImageUrl = data['profileImage'] as String?;
-                  }
-                }
-                
-                return profileImageUrl != null && profileImageUrl.isNotEmpty
-                  ? CircleAvatar(
-                      radius: 22,
-                      backgroundColor: Colors.black.withOpacity(0.1),
-                      child: ClipOval(
-                        child: CachedNetworkImage(
-                          imageUrl: profileImageUrl,
-                          width: 44,
-                          height: 44,
-                          fit: BoxFit.cover,
-                          placeholder: (context, url) => CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.black,
-                            ),
-                          ),
-                          errorWidget: (context, url, error) => Icon(
-                            Icons.person,
-                            color: Colors.black,
-                            size: 24,
-                          ),
-                          cacheKey: profileImageUrl.hashCode.toString(),
-                          memCacheHeight: 88,
-                          memCacheWidth: 88,
-                        ),
-                      ),
-                    )
-                  : CircleAvatar(
-                      backgroundColor: Colors.black.withOpacity(0.1),
-                      radius: 22,
-                      child: Icon(
-                        Icons.person,
-                        color: Colors.black,
-                        size: 24,
-                      ),
-                    );
+            child: Builder(
+              builder: (context) {
+                return CircleAvatar(
+                  backgroundColor: Colors.black.withOpacity(0.1),
+                  radius: 22,
+                  child: Icon(
+                    Icons.person,
+                    color: Colors.black,
+                    size: 24,
+                  ),
+                );
               },
             ),
           ),
@@ -317,23 +204,13 @@ class DashboardScreenState extends State<DashboardScreen> {
             child: GestureDetector(
               onTap: () async {
                 print('🔍 Username text tapped');
-                final user = FirebaseAuth.instance.currentUser;
-                print('🔍 Current user: ${user?.uid ?? 'null'}');
-                if (user != null) {
-                  print('🔍 User authenticated, going to settings');
-                  await Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => SettingsScreen()),
-                  );
-                  // Refresh dashboard when returning from settings (in case language changed)
-                  await refreshDashboard();
-                } else {
-                  print('🔍 User not authenticated, going to login');
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const LoginScreen()),
-                  );
-                }
+                print('🔍 Going to settings');
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => SettingsScreen()),
+                );
+                // Refresh dashboard when returning from settings (in case language changed)
+                await refreshDashboard();
               },
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -390,85 +267,43 @@ class DashboardScreenState extends State<DashboardScreen> {
   // Helper function to check if user should have free camera access
   Future<bool> _shouldAllowFreeCameraAccess() async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
       final prefs = await SharedPreferences.getInstance();
       
-      if (user == null) {
-        // Non-authenticated user - check daily scan limit
-        final localMeals = await Meal.loadFromLocalStorage();
+      // Check referral scans first
+      final hasUsedReferralCode = prefs.getBool('has_used_referral_code') ?? false;
+      if (hasUsedReferralCode) {
+        final referralFreeScans = prefs.getInt('referral_free_scans') ?? 0;
+        final usedReferralScans = prefs.getInt('used_referral_scans') ?? 0;
         
-        // Check referral scans first
-        final hasUsedReferralCode = prefs.getBool('has_used_referral_code') ?? false;
-        if (hasUsedReferralCode) {
-          final referralFreeScans = prefs.getInt('referral_free_scans') ?? 0;
-          final usedReferralScans = prefs.getInt('used_referral_scans') ?? 0;
-          
-          if (usedReferralScans < referralFreeScans) {
-            print('🎁 Non-auth user has ${referralFreeScans - usedReferralScans} referral scans');
-            return true;
-          }
-        }
-        
-        // Check daily scan limit (1 scan per day for non-authenticated users without referral)
-        final today = DateTime.now();
-        final startOfToday = DateTime(today.year, today.month, today.day);
-        final endOfToday = startOfToday.add(const Duration(days: 1));
-        
-        final todayScans = localMeals.where((meal) =>
-            meal.timestamp.isAfter(startOfToday) &&
-            meal.timestamp.isBefore(endOfToday) &&
-            !meal.isAnalyzing &&
-            !meal.analysisFailed
-        ).length;
-        
-        final canUseFreeScan = todayScans < 1;
-        print('🔍 Non-auth user daily scan check: $canUseFreeScan (${todayScans}/1 used today)');
-        return canUseFreeScan;
-      } else {
-        // Authenticated user - check both subscription and daily scans
-        final hasActiveSubscription = await PaywallService.hasActiveSubscription();
-        if (hasActiveSubscription) {
-          print('✅ Auth user has active subscription');
+        if (usedReferralScans < referralFreeScans) {
+          print('🎁 User has ${referralFreeScans - usedReferralScans} referral scans');
           return true;
         }
-        
-        // Check referral scans first for authenticated users
-        final hasUsedReferralCode = prefs.getBool('has_used_referral_code') ?? false;
-        if (hasUsedReferralCode) {
-          final referralFreeScans = prefs.getInt('referral_free_scans') ?? 0;
-          final usedReferralScans = prefs.getInt('used_referral_scans') ?? 0;
-          
-          if (usedReferralScans < referralFreeScans) {
-            print('🎁 Auth user has ${referralFreeScans - usedReferralScans} referral scans');
-            return true;
-          }
-        }
-        
-        // Check daily scan limit for authenticated users without subscription (1 scan per day)
-        final today = DateTime.now();
-        final startOfToday = DateTime(today.year, today.month, today.day);
-        final endOfToday = startOfToday.add(const Duration(days: 1));
-        
-      final snapshot = await FirebaseFirestore.instance
-          .collection('analyzed_meals')
-          .where('userId', isEqualTo: user.uid)
-            .where('timestamp', isGreaterThan: Timestamp.fromDate(startOfToday))
-            .where('timestamp', isLessThan: Timestamp.fromDate(endOfToday))
-          .get();
-
-        final todayScans = snapshot.docs.length;
-        final canUseFreeScan = todayScans < 1;
-        print('🔍 Auth user daily scan check: $canUseFreeScan (${todayScans}/1 used today)');
-        return canUseFreeScan;
       }
+      
+      // Check daily scan limit (1 scan per day for free users)
+      final localMeals = await Meal.loadFromLocalStorage();
+      final today = DateTime.now();
+      final startOfToday = DateTime(today.year, today.month, today.day);
+      final endOfToday = startOfToday.add(const Duration(days: 1));
+      
+      final todayScans = localMeals.where((meal) =>
+          meal.timestamp.isAfter(startOfToday) &&
+          meal.timestamp.isBefore(endOfToday) &&
+          !meal.isAnalyzing &&
+          !meal.analysisFailed
+      ).length;
+      
+      final canUseFreeScan = todayScans < 1;
+      print('🔍 Daily scan check: $canUseFreeScan (${todayScans}/1 used today)');
+      return canUseFreeScan;
+      
     } catch (e) {
       print('❌ Error checking free camera access: $e');
-      // On error, allow access for better UX
-      return true;
+      return false;
     }
   }
 
-  // Trigger camera access - directly opens camera page
   Future<void> _triggerCameraAccess() async {
     print('🚀 _triggerCameraAccess called - opening camera directly');
     print('🎯 Context mounted: ${context.mounted}');
@@ -569,7 +404,7 @@ class DashboardScreenState extends State<DashboardScreen> {
               // Check if user has premium subscription
               final hasActiveSubscription = await PaywallService.hasActiveSubscription();
               if (hasActiveSubscription) {
-                print('✅ Auth user has active subscription');
+                print('✅ User has active subscription');
                 await _triggerCameraAccess();
                 return;
               }
@@ -578,12 +413,7 @@ class DashboardScreenState extends State<DashboardScreen> {
               final canUseFreeAccess = await _shouldAllowFreeCameraAccess();
               if (canUseFreeAccess) {
                 print('✅ Free camera access granted');
-                        final user = FirebaseAuth.instance.currentUser;
-                        if (user != null) {
-                  print('📱 Authenticated user with subscription: unlimited scans');
-                        } else {
-                  print('📱 Anonymous or authenticated user without subscription: checking free scans');
-                }
+                print('📱 User without subscription: checking free scans');
                 await _triggerCameraAccess();
                 return;
               }

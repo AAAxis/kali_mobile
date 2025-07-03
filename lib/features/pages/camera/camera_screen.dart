@@ -33,7 +33,7 @@ class _CameraScreenState extends State<CameraScreen>
   bool _isCameraInitialized = false;
   bool _isCapturing = false;
   bool _isFlashOn = false;
-  bool _isPermissionGranted = false;
+
   String? _capturedImagePath;
 
   late AnimationController _captureAnimationController;
@@ -122,33 +122,28 @@ class _CameraScreenState extends State<CameraScreen>
       
       print('📸 Using camera: ${camera.name}');
 
-      final status = await Permission.camera.request();
-      if (status.isGranted) {
-        setState(() => _isPermissionGranted = true);
-        
-        _controller = CameraController(
-          camera,
-          ResolutionPreset.medium, // Use medium instead of high for better compatibility
-          enableAudio: false,
-          imageFormatGroup: ImageFormatGroup.jpeg,
-        );
+      _controller = CameraController(
+        camera,
+        ResolutionPreset.medium, // Use medium instead of high for better compatibility
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.jpeg,
+      );
 
-        print('🔧 Initializing camera controller...');
-        await _controller!.initialize();
-        
-        // Verify camera is actually working
-        if (!_controller!.value.isInitialized) {
-          throw Exception('Camera failed to initialize properly');
-        }
-        
-        print('✅ Camera controller initialized successfully');
-        
-        if (mounted) {
-          setState(() {
-            _isCameraInitialized = true;
-          });
-          print('🎯 Camera UI updated');
-        }
+      print('🔧 Initializing camera controller...');
+      await _controller!.initialize();
+      
+      // Verify camera is actually working
+      if (!_controller!.value.isInitialized) {
+        throw Exception('Camera failed to initialize properly');
+      }
+      
+      print('✅ Camera controller initialized successfully');
+      
+      if (mounted) {
+        setState(() {
+          _isCameraInitialized = true;
+        });
+        print('🎯 Camera UI updated');
       }
     } catch (e) {
       print('❌ Error initializing camera: $e');
@@ -215,18 +210,20 @@ class _CameraScreenState extends State<CameraScreen>
       }
 
       if (mounted) {
-        // Navigate back and start analysis
-        print('📸 Photo captured: ${image.path}');
-        Navigator.of(context).pop();
-        
-        // Start meal analysis
+        // Add a temporary analyzing meal to show animation
         if (widget.updateMeals != null && widget.meals != null) {
-          print('📸 Starting analysis for camera image...');
-          await analyzeImageFile(image.path);
-          print('📸 Camera image analysis completed');
-        } else {
-          print('❌ updateMeals or meals is null');
+          final analyzingMeal = Meal.analyzing(
+            imageUrl: image.path,
+            localImagePath: image.path,
+            userId: FirebaseAuth.instance.currentUser?.uid,
+          );
+          final updatedMeals = [...widget.meals!, analyzingMeal];
+          widget.updateMeals!(updatedMeals);
+
+          // Start analysis in background
+          analyzeImageFile(image.path);
         }
+        Navigator.of(context).pop();
       }
     } catch (e) {
       print('Error capturing photo: $e');
@@ -255,15 +252,21 @@ class _CameraScreenState extends State<CameraScreen>
       
       if (image != null && mounted) {
         print('📱 Image selected from gallery: ${image.path}');
-        Navigator.of(context).pop();
         
+        // Add a temporary analyzing meal to show animation
         if (widget.updateMeals != null && widget.meals != null) {
-          print('📱 Starting analysis for gallery image...');
-          await analyzeImageFile(image.path);
-          print('📱 Gallery image analysis completed');
-        } else {
-          print('❌ updateMeals or meals is null');
+          final analyzingMeal = Meal.analyzing(
+            imageUrl: image.path,
+            localImagePath: image.path,
+            userId: FirebaseAuth.instance.currentUser?.uid,
+          );
+          final updatedMeals = [...widget.meals!, analyzingMeal];
+          widget.updateMeals!(updatedMeals);
+
+          // Start analysis in background
+          analyzeImageFile(image.path);
         }
+        Navigator.of(context).pop();
       } else {
         print('📱 No image selected from gallery');
       }
@@ -282,58 +285,117 @@ class _CameraScreenState extends State<CameraScreen>
 
   Future<void> analyzeImageFile(String imagePath) async {
     try {
-      setState(() {
-        _isCapturing = true;
-      });
-
-      // Upload image and get URL
-      final imageUrl = await UploadService.uploadImage(imagePath);
+      print('🚀 Starting image analysis for: $imagePath');
       
-      // Analyze image with OpenAI
-      final analysis = await OpenAIService.analyzeImage(imageUrl);
+      // Upload image and get URL with retry logic
+      final imageUrl = await UploadService.uploadImageWithRetry(File(imagePath));
+      print('📤 Image uploaded to: $imageUrl');
       
-      if (analysis != null) {
-        await _handleAnalysisResult(analysis);
-      }
+      // Get the image file name for analysis
+      final imageName = imagePath.split('/').last;
+      
+      // Analyze image with OpenAI using the correct method with retry
+      final analysis = await OpenAIService.analyzeMealImageWithRetry(
+        imageUrl: imageUrl,
+        imageName: imageName,
+        imageFile: File(imagePath),
+      );
+      
+      print('🎯 Analysis completed successfully');
+      await _handleAnalysisResult(analysis, imageUrl);
+      
     } catch (e) {
+      print('❌ Error in image analysis: $e');
+      
+      // Find and update the analyzing meal to show failure
+      if (widget.updateMeals != null && widget.meals != null) {
+        final updatedMeals = widget.meals!.map((meal) {
+          if (meal.isAnalyzing && 
+              (meal.imageUrl == imagePath || meal.localImagePath == imagePath)) {
+            return Meal.failed(
+              id: meal.id,
+              imageUrl: meal.imageUrl ?? imagePath,
+              localImagePath: imagePath,
+              userId: meal.userId,
+            );
+          }
+          return meal;
+        }).toList();
+        
+        widget.updateMeals!(updatedMeals);
+        await Meal.saveToLocalStorage(updatedMeals);
+      }
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error analyzing image: $e')),
+          SnackBar(
+            content: Text('Error analyzing image: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isCapturing = false;
-        });
       }
     }
   }
 
-  Future<void> _handleAnalysisResult(Map<String, dynamic> analysis) async {
-    final newMeal = Meal(
-      id: const Uuid().v4(),
-      userId: FirebaseAuth.instance.currentUser?.uid ?? 'anonymous',
-      timestamp: DateTime.now(),
-      name: analysis['name'] ?? 'Unknown Meal',
-      calories: analysis['calories']?.toDouble() ?? 0.0,
-      protein: analysis['protein']?.toDouble() ?? 0.0,
-      carbs: analysis['carbs']?.toDouble() ?? 0.0,
-      fat: analysis['fat']?.toDouble() ?? 0.0,
-      imageUrl: _capturedImagePath,
-    );
-
-    if (widget.meals != null) {
-      final updatedMeals = [...widget.meals!, newMeal];
-      await Meal.saveToLocalStorage(updatedMeals);
+  Future<void> _handleAnalysisResult(Map<String, dynamic> analysis, String imageUrl) async {
+    try {
+      print('🍽️ Processing analysis result for meal');
       
-      if (widget.updateMeals != null) {
+      if (widget.updateMeals != null && widget.meals != null) {
+        // Find the analyzing meal and replace it with the analyzed result
+        final updatedMeals = widget.meals!.map((meal) {
+          if (meal.isAnalyzing && 
+              (meal.imageUrl == imageUrl || meal.localImagePath?.contains(imageUrl.split('/').last) == true)) {
+            // Create a new meal from the analysis using the existing meal's ID
+            return Meal.fromAnalysis(
+              id: meal.id,
+              imageUrl: imageUrl,
+              localImagePath: meal.localImagePath,
+              analysisData: analysis,
+              userId: FirebaseAuth.instance.currentUser?.uid ?? 'anonymous',
+            );
+          }
+          return meal;
+        }).toList();
+        
+        // Save to local storage
+        await Meal.saveToLocalStorage(updatedMeals);
+        
+        // Update the UI
         widget.updateMeals!(updatedMeals);
+        
+        print('✅ Analysis result processed and UI updated');
       }
-    }
-
-    if (mounted) {
-      Navigator.pop(context); // Return to previous screen
+    } catch (e) {
+      print('❌ Error handling analysis result: $e');
+      
+      // On error, mark the analyzing meal as failed
+      if (widget.updateMeals != null && widget.meals != null) {
+        final updatedMeals = widget.meals!.map((meal) {
+          if (meal.isAnalyzing && 
+              (meal.imageUrl == imageUrl || meal.localImagePath?.contains(imageUrl.split('/').last) == true)) {
+            return Meal.failed(
+              id: meal.id,
+              imageUrl: imageUrl,
+              localImagePath: meal.localImagePath,
+              userId: meal.userId,
+            );
+          }
+          return meal;
+        }).toList();
+        
+        widget.updateMeals!(updatedMeals);
+        await Meal.saveToLocalStorage(updatedMeals);
+      }
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error processing analysis: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -539,108 +601,6 @@ class _CameraScreenState extends State<CameraScreen>
 
   @override
   Widget build(BuildContext context) {
-    if (!_isPermissionGranted) {
-      return Scaffold(
-        backgroundColor: Colors.white,
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Camera Icon
-                Icon(
-                  Icons.camera_alt_outlined,
-                  size: 80,
-                  color: Colors.black,
-                ),
-                const SizedBox(height: 24),
-                // Title
-                Text(
-                  'camera.permission_required'.tr(),
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                // Description
-                Text(
-                  'camera.permission_description'.tr(),
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.black87,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 32),
-                // Grant Permission Button
-                ElevatedButton(
-                  onPressed: () async {
-                    final status = await Permission.camera.request();
-                    if (status.isGranted) {
-                      setState(() => _isPermissionGranted = true);
-                      await _initializeCamera();
-                    } else {
-                      // Show settings dialog if permission is permanently denied
-                      if (status.isPermanentlyDenied && mounted) {
-                        showDialog(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: Text('camera.settings_required'.tr()),
-                            content: Text('camera.settings_description'.tr()),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context),
-                                child: Text('camera.cancel'.tr()),
-                              ),
-                              TextButton(
-                                onPressed: () {
-                                  openAppSettings();
-                                  Navigator.pop(context);
-                                },
-                                child: Text('camera.open_settings'.tr()),
-                              ),
-                            ],
-                          ),
-                        );
-                      }
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: Text(
-                    'camera.grant_access'.tr(),
-                    style: TextStyle(fontSize: 16),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // Back Button
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text(
-                    'camera.go_back'.tr(),
-                    style: TextStyle(
-                      color: Colors.black54,
-                      fontSize: 16,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
     if (!_isCameraInitialized) {
       return const Scaffold(
         backgroundColor: Colors.black,
@@ -678,11 +638,11 @@ class CameraOverlayPainter extends CustomPainter {
       ..style = PaintingStyle.stroke;
 
     final center = Offset(size.width / 2, size.height / 2);
-    final rectSize = size.width * 0.7;
+    final rectHeight = size.height * 0.7;
     final rect = Rect.fromCenter(
       center: center,
-      width: rectSize,
-      height: rectSize * 0.75,
+      width: rectHeight * 0.75,
+      height: rectHeight,
     );
 
     // Draw corner brackets

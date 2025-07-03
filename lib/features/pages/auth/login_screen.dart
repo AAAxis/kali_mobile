@@ -1,17 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart';
-import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:go_router/go_router.dart';
 import 'dart:io';
 import '../../../core/constant/app_icons.dart';
 import '../../../core/custom_widgets/social_button.dart';
-import '../../../core/extension/navigation_extention.dart';
+import '../../../core/services/auth_service.dart';
 import '../../../core/theme/app_text_styles.dart';
-import '../../../core/store/shared_pref.dart';
 import 'login_with_email_screen.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../dashboard/dashboard_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -22,70 +17,28 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final TextEditingController emailController = TextEditingController();
   bool _isLoading = false;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   @override
   void dispose() {
-    emailController.dispose();
     super.dispose();
   }
 
   Future<void> _handleAppleSignIn() async {
     if (_isLoading) return;
     
+    setState(() => _isLoading = true);
+    
     try {
-      setState(() => _isLoading = true);
-
-      final credential = await SignInWithApple.getAppleIDCredential(
-        scopes: [
-          AppleIDAuthorizationScopes.email,
-          AppleIDAuthorizationScopes.fullName,
-        ],
-      );
-
-      final oauthCredential = OAuthProvider("apple.com").credential(
-        idToken: credential.identityToken,
-        accessToken: credential.authorizationCode,
-      );
-
-      final userCredential = await _auth.signInWithCredential(oauthCredential);
+      final result = await AuthService.signInWithApple();
       
-      // Update user profile if we have a name from Apple
-      if (credential.givenName != null || credential.familyName != null) {
-        final displayName = [credential.givenName, credential.familyName]
-            .where((name) => name != null)
-            .join(' ');
-            
-        if (displayName.isNotEmpty) {
-          await userCredential.user?.updateDisplayName(displayName);
-          
-          // Also update Firestore
-          if (userCredential.user != null) {
-            await FirebaseFirestore.instance
-                .collection('users')
-                .doc(userCredential.user!.uid)
-                .set({
-              'displayName': displayName,
-              'email': credential.email,
-              'lastLoginAt': FieldValue.serverTimestamp(),
-            }, SetOptions(merge: true));
-          }
-        }
+      if (result.isSuccess) {
+        await _handleLoginSuccess();
+      } else {
+        _showError(result.error ?? 'Apple sign in failed');
       }
-
-      await _handleLoginSuccess(userCredential);
     } catch (e) {
-      print('Error during Apple sign in: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Apple sign in failed: $e'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-      }
+      _showError('Apple sign in failed: $e');
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -96,37 +49,18 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _handleGoogleSignIn() async {
     if (_isLoading) return;
     
+    setState(() => _isLoading = true);
+    
     try {
-      setState(() => _isLoading = true);
-
-      final GoogleSignIn googleSignIn = GoogleSignIn();
-      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+      final result = await AuthService.signInWithGoogle();
       
-      if (googleUser == null) {
-        // User cancelled the sign-in
-        setState(() => _isLoading = false);
-        return;
+      if (result.isSuccess) {
+        await _handleLoginSuccess();
+      } else {
+        _showError(result.error ?? 'Google sign in failed');
       }
-
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      final userCredential = await _auth.signInWithCredential(credential);
-      await _handleLoginSuccess(userCredential);
     } catch (e) {
-      print('Error during Google sign in: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Google sign in failed: $e'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-      }
+      _showError('Google sign in failed: $e');
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -134,31 +68,23 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _handleLoginSuccess(UserCredential userCredential) async {
-    try {
-      final user = userCredential.user;
-      if (user == null) return;
+  Future<void> _handleLoginSuccess() async {
+    if (mounted) {
+      // Navigate to dashboard using go_router
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        context.go('/dashboard');
+      });
+    }
+  }
 
-      // Save user info to SharedPreferences
-      await SharedPref.setUserEmail(user.email ?? '');
-      await SharedPref.setUserName(user.displayName ?? '');
-      
-      if (mounted) {
-        // Navigate to dashboard using go_router
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          context.go('/dashboard');
-        });
-      }
-    } catch (e) {
-      print('Error during login success handling: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Login success handling failed'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-      }
+  void _showError(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
     }
   }
 
@@ -252,39 +178,13 @@ class _LoginScreenState extends State<LoginScreen> {
               
               // Loading indicator
               if (_isLoading) ...[
-                SizedBox(height: 18.h),
-                Center(
-                  child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
-                  ),
+                SizedBox(height: 32.h),
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
                 ),
               ],
-              SizedBox(height: 34.h),
-
+              
               const Spacer(),
-              // Login Button
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    "Don't Have an Account? ",
-                    style: AppTextStyles.bodyMedium
-                        .copyWith(color: colorScheme.onSurfaceVariant),
-                  ),
-                  GestureDetector(
-                    onTap: () => context.goToSignup(),
-                    child: Text(
-                      "Signup",
-                      style: AppTextStyles.bodyMedium.copyWith(
-                        color: colorScheme.primary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 18.h),
             ],
           ),
         ),

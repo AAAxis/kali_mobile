@@ -1,5 +1,6 @@
 class AppIcons {
   static const _base = 'assets/icons/';
+  static const _images = 'images/';
 
   static const drop = '${_base}drop.png';
   static const apple = '${_base}apple.png';
@@ -28,4 +29,10 @@ class AppIcons {
   static const web = '${_base}web.png';
   static const tiktok = '${_base}tiktok.png';
   static const kali = '${_base}kali_ai.png';
+  
+  // Nutrition icons
+  static const calories = '${_images}calories.png';
+  static const protein = '${_images}protein.png';
+  static const carbs = '${_images}carbs.png';
+  static const fats = '${_images}fats.png';
 }

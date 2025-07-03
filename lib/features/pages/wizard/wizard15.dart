@@ -50,8 +50,9 @@ class Wizard15 extends StatelessWidget {
                     label: 'Instagram',
                     icon: AppIcons.insta,
                     isSelected: selectedSocialMedia == 0,
-                    onTap: () {
+                    onTap: () async {
                       provider.selectSocialMedia(0);
+                      await provider.saveAllWizardData();
                     },
                   ),
                   SizedBox(height: 14.h),
@@ -59,8 +60,9 @@ class Wizard15 extends StatelessWidget {
                     label: 'Facebook',
                     icon: AppIcons.fb,
                     isSelected: selectedSocialMedia == 1,
-                    onTap: () {
+                    onTap: () async {
                       provider.selectSocialMedia(1);
+                      await provider.saveAllWizardData();
                     },
                   ),
                   SizedBox(height: 14.h),
@@ -68,8 +70,9 @@ class Wizard15 extends StatelessWidget {
                     label: 'Website',
                     icon: AppIcons.web,
                     isSelected: selectedSocialMedia == 2,
-                    onTap: () {
+                    onTap: () async {
                       provider.selectSocialMedia(2);
+                      await provider.saveAllWizardData();
                     },
                   ),
                   SizedBox(height: 14.h),
@@ -77,8 +80,9 @@ class Wizard15 extends StatelessWidget {
                     label: 'Tiktok',
                     icon: AppIcons.tiktok,
                     isSelected: selectedSocialMedia == 3,
-                    onTap: () {
+                    onTap: () async {
                       provider.selectSocialMedia(3);
+                      await provider.saveAllWizardData();
                     },
                   ),
                 ],

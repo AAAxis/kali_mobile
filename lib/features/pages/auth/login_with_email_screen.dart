@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constant/app_icons.dart';
 import '../../../core/custom_widgets/custom_text_field.dart';
 import '../../../core/custom_widgets/wide_elevated_button.dart';
-import '../../../core/extension/navigation_extention.dart';
+import '../../../core/services/auth_service.dart';
 import '../../../core/theme/app_text_styles.dart';
-import '../../../core/store/shared_pref.dart';
 import 'forgot_password_screen.dart';
 
 class LoginWithEmailScreen extends StatefulWidget {
@@ -24,8 +22,6 @@ class _LoginWithEmailScreenState extends State<LoginWithEmailScreen> {
   bool _isLoading = false;
   bool _obscurePassword = true;
 
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-
   @override
   void dispose() {
     _emailController.dispose();
@@ -41,60 +37,19 @@ class _LoginWithEmailScreenState extends State<LoginWithEmailScreen> {
     try {
       print('🔑 Attempting login with email: ${_emailController.text.trim()}');
       
-      final userCredential = await _auth.signInWithEmailAndPassword(
+      final result = await AuthService.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
 
-      if (userCredential.user != null) {
-        await _handleLoginSuccess(userCredential);
-      }
-    } on FirebaseAuthException catch (e) {
-      print('🔥 Firebase Auth Error: ${e.code} - ${e.message}');
-      String errorMessage;
-      switch (e.code) {
-        case 'user-not-found':
-          errorMessage = 'No account found with this email. Please sign up first.';
-          break;
-        case 'wrong-password':
-          errorMessage = 'Incorrect password. Please check and try again.';
-          break;
-        case 'invalid-email':
-          errorMessage = 'Invalid email address format.';
-          break;
-        case 'user-disabled':
-          errorMessage = 'This account has been disabled.';
-          break;
-        case 'too-many-requests':
-          errorMessage = 'Too many failed attempts. Please try again later.';
-          break;
-        case 'invalid-credential':
-          errorMessage = 'Invalid email or password. Please check your credentials.';
-          break;
-        case 'network-request-failed':
-          errorMessage = 'Network error. Please check your internet connection.';
-          break;
-        default:
-          errorMessage = 'Login failed: ${e.message ?? e.code}';
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
+      if (result.isSuccess) {
+        await _handleLoginSuccess();
+      } else {
+        _showError(result.error ?? 'Login failed');
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('An unexpected error occurred. Please try again.'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-      }
+      print('❌ Unexpected error during login: $e');
+      _showError('An unexpected error occurred. Please try again.');
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -102,31 +57,23 @@ class _LoginWithEmailScreenState extends State<LoginWithEmailScreen> {
     }
   }
 
-  Future<void> _handleLoginSuccess(UserCredential userCredential) async {
-    try {
-      final user = userCredential.user;
-      if (user == null) return;
+  Future<void> _handleLoginSuccess() async {
+    if (mounted) {
+      // Navigate to dashboard using go_router
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        context.go('/dashboard');
+      });
+    }
+  }
 
-      // Save user info to SharedPreferences
-      await SharedPref.setUserEmail(user.email ?? '');
-      await SharedPref.setUserName(user.displayName ?? '');
-
-      if (mounted) {
-        // Navigate to dashboard using go_router
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          context.go('/dashboard');
-        });
-      }
-    } catch (e) {
-      print('Error during login success handling: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Login successful but data save failed.'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-      }
+  void _showError(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
     }
   }
 
@@ -298,22 +245,25 @@ class _LoginWithEmailScreenState extends State<LoginWithEmailScreen> {
                     children: [
                       Text(
                         "Don't have an account? ",
-                        style: AppTextStyles.bodyMedium
-                            .copyWith(color: colorScheme.onSurfaceVariant),
+                        style: AppTextStyles.bodyMedium.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
                       ),
                       GestureDetector(
-                        onTap: () => context.goToSignup(),
+                        onTap: () {
+                          context.go('/signup');
+                        },
                         child: Text(
                           "Sign Up",
                           style: AppTextStyles.bodyMedium.copyWith(
                             color: colorScheme.primary,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
                     ],
                   ),
-                  SizedBox(height: 28.h),
+                  SizedBox(height: 24.h),
                 ],
               ),
             ),

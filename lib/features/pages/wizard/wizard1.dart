@@ -44,8 +44,9 @@ class Wizard1 extends StatelessWidget {
                 diameterRatio: 1.15,
                 perspective: 0.004,
                 physics: const FixedExtentScrollPhysics(),
-                onSelectedItemChanged: (index) {
+                onSelectedItemChanged: (index) async {
                   provider.setAge(index + 10);
+                  await provider.saveAllWizardData();
                 },
                 childDelegate: ListWheelChildBuilderDelegate(
                   childCount: 70,

@@ -52,7 +52,10 @@ class Wizard9 extends StatelessWidget {
                 final isSelected = provider.selectedWorkoutIndex == i;
 
                 return GestureDetector(
-                  onTap: () => provider.selectWorkoutIndex(i),
+                  onTap: () async {
+                    provider.selectWorkoutIndex(i);
+                    await provider.saveAllWizardData();
+                  },
                   child: Container(
                     decoration: BoxDecoration(
                       color: isSelected

@@ -12,8 +12,8 @@ class Wizard3 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     final provider = Provider.of<WizardProvider>(context);
+    final colorScheme = Theme.of(context).colorScheme;
 
     final isKg = provider.isKg;
     final weight = provider.weight;
@@ -22,122 +22,146 @@ class Wizard3 extends StatelessWidget {
     final max = isKg ? 150.0 : 330.0;
     final step = 0.1;
     final itemCount = ((max - min) / step).floor() + 1;
-
+    final initialIndex = ((weight - min) / step).round();
+    final controller = FixedExtentScrollController(initialItem: initialIndex);
     final itemExtent = isKg ? 20.w : 26.w;
 
-    return Scaffold(
-      backgroundColor: colorScheme.surface,
-      body: SafeArea(
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 24.w),
-          child: Column(
-            children: [
-              SizedBox(height: 38.h),
-              // App Title
-              Image.asset(
-                AppIcons.kali,
-                color: colorScheme.primary,
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 24.w),
+        child: Column(
+          children: [
+            SizedBox(height: Constants.beforeIcon),
+            Image.asset(AppIcons.kali, color: colorScheme.primary),
+            SizedBox(height: Constants.afterIcon),
+            Text(
+              "What's your current\nweight right now?",
+              style: AppTextStyles.headingMedium.copyWith(
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
               ),
-              SizedBox(height: 20.h),
-              Text(
-                "What's your current height right now?",
-                style: AppTextStyles.headingMedium.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.onSurface,
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 30.h),
+
+            /// Toggle
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _UnitToggleButton(
+                  label: "Lbs",
+                  isActive: !isKg,
+                  onTap: () async {
+                    provider.toggleUnit(false);
+                    await provider.saveAllWizardData();
+                  },
                 ),
-                textAlign: TextAlign.center,
+                SizedBox(width: 18.w),
+                _UnitToggleButton(
+                  label: "KGs",
+                  isActive: isKg,
+                  onTap: () async {
+                    provider.toggleUnit(true);
+                    await provider.saveAllWizardData();
+                  },
+                ),
+              ],
+            ),
+            SizedBox(height: 100.h),
+
+            /// Display Weight
+            Text(
+              '${weight.toStringAsFixed(1)} ${isKg ? "Kg" : "Lb"}',
+              style: AppTextStyles.headingLarge.copyWith(
+                color: colorScheme.onSurface,
+                fontWeight: FontWeight.bold,
+                fontSize: 40.sp,
               ),
-              SizedBox(height: 20.h),
-              
-              // Unit Toggle
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _UnitToggleButton(
-                    label: 'Inches',
-                    isActive: !provider.isMetric,
-                    onTap: () => provider.toggleMetric(false),
-                  ),
-                  SizedBox(width: 16.w),
-                  _UnitToggleButton(
-                    label: 'Cm',
-                    isActive: provider.isMetric,
-                    onTap: () => provider.toggleMetric(true),
-                  ),
-                ],
-              ),
-              
-              SizedBox(height: 20.h),
-              
-              // Height Picker
-              Expanded(
-                child: Container(
-                  constraints: BoxConstraints(maxHeight: 400.h),
-                  child: ListWheelScrollView(
-                    controller: provider.scrollController,
-                    itemExtent: 50.h,
-                    diameterRatio: 4,
-                    useMagnifier: true,
-                    magnification: 1.5,
-                    physics: const FixedExtentScrollPhysics(),
-                    onSelectedItemChanged: (index) {
-                      final height = provider.isMetric ? 
-                        (index + 140) : // cm
-                        (index + 48);   // inches
-                      provider.setHeight(height);
-                    },
-                    children: List.generate(
-                      provider.isMetric ? 81 : 37, // 140-220 cm or 4'-7' feet
-                      (index) {
-                        final height = provider.isMetric ? 
-                          (index + 140) : // cm
-                          (index + 48);   // inches
-                        final isSelected = height == provider.height;
-                        return Center(
-                          child: Container(
-                            padding: EdgeInsets.symmetric(horizontal: 24.w),
-                            decoration: isSelected ? BoxDecoration(
-                              border: Border(
-                                top: BorderSide(color: colorScheme.onSurface, width: 1),
-                                bottom: BorderSide(color: colorScheme.onSurface, width: 1),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 30.h),
+
+            /// Ruler Picker
+            SizedBox(
+              height: 100.h,
+              child: RotatedBox(
+                quarterTurns: -1,
+                child: ListWheelScrollView.useDelegate(
+                  controller: controller,
+                  itemExtent: itemExtent,
+                  physics: const FixedExtentScrollPhysics(),
+                  onSelectedItemChanged: (index) async {
+                    final value = min + (index * step);
+                    provider.setWeight(value);
+                    await provider.saveAllWizardData();
+                  },
+                  childDelegate: ListWheelChildBuilderDelegate(
+                    childCount: itemCount,
+                    builder: (context, idx) {
+                      final value = min + idx * step;
+                      final isSelected = (value.toStringAsFixed(1) == weight.toStringAsFixed(1));
+                      final isWholeUnit = (value * 10) % 10 == 0;
+
+                      double height;
+                      if (isSelected) {
+                        height = 55.h;
+                      } else if (isWholeUnit) {
+                        height = 40.h;
+                      } else {
+                        height = 25.h;
+                      }
+
+                      return RotatedBox(
+                        quarterTurns: 1,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: isSelected ? 3.5.w : 2.w,
+                              height: height,
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? colorScheme.onSurface
+                                    : colorScheme.onSurface.withAlpha(100),
+                                borderRadius: BorderRadius.circular(4),
                               ),
-                            ) : null,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  '$height${provider.isMetric ? ' cm' : ''}',
-                                  style: TextStyle(
-                                    fontSize: isSelected ? 24.sp : 20.sp,
-                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                    color: isSelected ? 
-                                      colorScheme.onSurface : 
-                                      colorScheme.onSurface.withOpacity(0.5),
+                            ),
+                            if (isWholeUnit)
+                              Padding(
+                                padding: EdgeInsets.only(top: 4.h),
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    value.toStringAsFixed(0),
+                                    style: AppTextStyles.bodyLarge.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                      color: colorScheme.onSurface,
+                                      fontSize: 16.sp,
+                                    ),
                                   ),
                                 ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+                              ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
                 ),
               ),
-              
-              // Continue Button
-              Padding(
-                padding: EdgeInsets.only(bottom: 24.h),
-                child: WizardButton(
-                  label: 'Continue',
-                  onPressed: () {
-                    Provider.of<WizardProvider>(context, listen: false).nextPage();
-                  },
-                  padding: EdgeInsets.symmetric(vertical: 18.h),
-                ),
-              ),
-            ],
-          ),
+            ),
+
+            const Spacer(),
+
+            /// Continue Button
+            WizardButton(
+              label: 'Continue',
+              onPressed: () {
+                Provider.of<WizardProvider>(context, listen: false).nextPage();
+              },
+              padding: EdgeInsets.symmetric(vertical: 18.h),
+            ),
+            SizedBox(height: 24.h),
+          ],
         ),
       ),
     );
@@ -169,24 +193,16 @@ class _UnitToggleButton extends StatelessWidget {
           border: Border.all(
             color: isActive
                 ? colorScheme.primary
-                : colorScheme.outline.withValues(alpha: 0.7),
-            width: 2,
+                : colorScheme.outline.withAlpha(150),
+            width: 1.5,
           ),
-          boxShadow: [
-            if (isActive)
-              BoxShadow(
-                color: colorScheme.primary.withValues(alpha: 0.08),
-                blurRadius: 10,
-                spreadRadius: 1,
-              ),
-          ],
         ),
         child: Text(
           label,
           style: AppTextStyles.bodyLarge.copyWith(
             color: isActive ? colorScheme.onPrimary : colorScheme.onSurface,
             fontWeight: FontWeight.w600,
-            fontSize: 18.sp,
+            fontSize: 16.sp,
           ),
         ),
       ),

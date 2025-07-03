@@ -130,7 +130,7 @@ class AppRouter {
       GoRoute(
         path: AppRoutes.wizard8,
         name: 'wizard8',
-        builder: (context, state) => Wizard8(isGain: true, kgs: 17),
+        builder: (context, state) => const Wizard8(isGain: true),
       ),
       GoRoute(
         path: AppRoutes.wizard9,

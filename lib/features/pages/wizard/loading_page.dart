@@ -62,14 +62,18 @@ class _LoadingPageState extends State<LoadingPage> {
               Image.asset(AppIcons.kali, color: colorScheme.primary),
               SizedBox(height: 60.h),
 
-              // Percentage
-              Text(
-                '${progress.toInt()}%',
-                style: AppTextStyles.headingLarge.copyWith(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 64.sp,
-                  shadows: [Shadow(blurRadius: 4, color: Colors.black26)],
-                  color: colorScheme.onSurface,
+              // Percentage with animation
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: Text(
+                  '${progress.toInt()}%',
+                  key: ValueKey(progress.toInt()),
+                  style: AppTextStyles.headingLarge.copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 64.sp,
+                    shadows: [Shadow(blurRadius: 4, color: Colors.black26)],
+                    color: colorScheme.onSurface,
+                  ),
                 ),
               ),
               SizedBox(height: 10.h),
@@ -109,11 +113,15 @@ class _LoadingPageState extends State<LoadingPage> {
               ),
               SizedBox(height: 40.h),
 
-              Text(
-                isCompleted ? 'Your nutrition guide is ready!' : 'Optimizing results just for you...',
-                style: AppTextStyles.bodyLarge.copyWith(
-                  color: colorScheme.onSurface.withOpacity(0.7),
-                  fontSize: 16.sp,
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child: Text(
+                  loadingProvider.currentStatus,
+                  key: ValueKey(loadingProvider.currentStatus),
+                  style: AppTextStyles.bodyLarge.copyWith(
+                    color: colorScheme.onSurface.withOpacity(0.7),
+                    fontSize: 16.sp,
+                  ),
                 ),
               ),
               SizedBox(height: 40.h),
@@ -145,10 +153,14 @@ class _LoadingPageState extends State<LoadingPage> {
                           ),
                           const Spacer(),
                           if (index < checkedCount)
-                            Icon(
-                              Icons.check_circle_rounded,
-                              color: colorScheme.primary,
-                              size: 20.sp,
+                            AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 300),
+                              child: Icon(
+                                Icons.check_circle_rounded,
+                                key: ValueKey('check_$index'),
+                                color: colorScheme.primary,
+                                size: 20.sp,
+                              ),
                             ),
                         ],
                       ),

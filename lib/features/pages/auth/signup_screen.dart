@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/custom_widgets/custom_text_field.dart';
 import '../../../core/custom_widgets/wide_elevated_button.dart';
-import '../../../core/extension/navigation_extention.dart';
+import '../../../core/services/auth_service.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/constant/app_icons.dart';
 import 'email_otp_screen.dart';
@@ -38,43 +37,53 @@ class _SignUpScreenState extends State<SignUpScreen> {
     if (!_formKey.currentState!.validate()) return;
     
     if (!_agreedToTerms) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Please accept the Terms and Conditions to continue.'),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
+      _showError('Please accept the Terms and Conditions to continue.');
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
-      // Navigate to email OTP screen with the email, name, and password
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => EmailOtpScreen(
-            email: _emailController.text.trim(),
-            name: _nameController.text.trim(),
-            password: _passwordController.text.trim(),
-          ),
-        ),
-      );
-    } catch (e) {
-      print('Error during sign up: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('An unexpected error occurred. Please try again.'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
+      print('📧 Sending verification code to: ${_emailController.text.trim()}');
+      
+      final result = await AuthService.sendEmailVerificationCode(_emailController.text.trim());
+      
+      if (result.isSuccess) {
+        // Navigate to email OTP screen with the verification code
+        if (mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => EmailOtpScreen(
+                email: _emailController.text.trim(),
+                name: _nameController.text.trim(),
+                password: _passwordController.text.trim(),
+                expectedVerificationCode: result.verificationCode!,
+              ),
+            ),
+          );
+        }
+      } else {
+        _showError(result.error ?? 'Failed to send verification code');
       }
+    } catch (e) {
+      print('❌ Error during sign up: $e');
+      _showError('An unexpected error occurred. Please try again.');
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  void _showError(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
     }
   }
 
@@ -83,34 +92,41 @@ class _SignUpScreenState extends State<SignUpScreen> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
+      resizeToAvoidBottomInset: false, // This prevents the layout from being pushed up
       body: SafeArea(
         child: Padding(
           padding: EdgeInsets.symmetric(horizontal: 28.w),
-          child: Column(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Form(
-                    key: _formKey,
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // X button in top right
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    IconButton(
+                      onPressed: () {
+                        context.go('/dashboard');
+                      },
+                      icon: Icon(
+                        Icons.close,
+                        color: colorScheme.onSurface,
+                        size: 24.sp,
+                      ),
+                    ),
+                  ],
+                ),
+                
+                // Scrollable content area
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.only(
+                      bottom: MediaQuery.of(context).viewInsets.bottom,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        // X button in top right
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            IconButton(
-                              onPressed: () {
-                                context.go('/dashboard');
-                              },
-                              icon: Icon(
-                                Icons.close,
-                                color: colorScheme.onSurface,
-                                size: 24.sp,
-                              ),
-                            ),
-                          ],
-                        ),
                         Image.asset(
                           AppIcons.kali,
                           color: colorScheme.primary,
@@ -204,16 +220,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             ),
                           ),
                           suffixIcon: IconButton(
+                            icon: Icon(
+                              _isPasswordVisible ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
                             onPressed: () {
                               setState(() {
                                 _isPasswordVisible = !_isPasswordVisible;
                               });
                             },
-                            icon: Icon(
-                              _isPasswordVisible ? Icons.visibility_off : Icons.visibility,
-                              color: colorScheme.onSurfaceVariant,
-                              size: 18.sp,
-                            ),
                           ),
                           validator: (value) {
                             if (value == null || value.isEmpty) {
@@ -227,41 +242,47 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         ),
                         SizedBox(height: 24.h),
 
-                        // Terms and Conditions Checkbox
+                        // Terms and Conditions
                         Row(
                           children: [
-                            SizedBox(
-                              width: 24.w,
-                              height: 24.w,
-                              child: Checkbox(
-                                value: _agreedToTerms,
-                                onChanged: (value) {
-                                  setState(() => _agreedToTerms = value ?? false);
-                                },
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(4.r),
-                                ),
-                              ),
+                            Checkbox(
+                              value: _agreedToTerms,
+                              onChanged: (value) {
+                                setState(() {
+                                  _agreedToTerms = value ?? false;
+                                });
+                              },
+                              activeColor: colorScheme.primary,
                             ),
-                            SizedBox(width: 12.w),
                             Expanded(
                               child: RichText(
                                 text: TextSpan(
-                                  style: AppTextStyles.bodyMedium.copyWith(
-                                    color: colorScheme.onSurface,
+                                  style: AppTextStyles.bodySmall.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
                                   ),
                                   children: [
-                                    const TextSpan(text: 'I accept all the applied '),
+                                    const TextSpan(text: "I agree to the "),
                                     TextSpan(
-                                      text: 'Terms and Conditions',
+                                      text: "Terms and Conditions",
                                       style: TextStyle(
                                         color: colorScheme.primary,
                                         fontWeight: FontWeight.w600,
-                                        decoration: TextDecoration.underline,
                                       ),
                                       recognizer: TapGestureRecognizer()
                                         ..onTap = () {
-                                          // TODO: Navigate to Terms and Conditions
+                                          // TODO: Navigate to terms and conditions
+                                        },
+                                    ),
+                                    const TextSpan(text: " and "),
+                                    TextSpan(
+                                      text: "Privacy Policy",
+                                      style: TextStyle(
+                                        color: colorScheme.primary,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      recognizer: TapGestureRecognizer()
+                                        ..onTap = () {
+                                          // TODO: Navigate to privacy policy
                                         },
                                     ),
                                   ],
@@ -270,51 +291,61 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             ),
                           ],
                         ),
+                        SizedBox(height: 40.h), // Extra space before button
                       ],
                     ),
                   ),
                 ),
-              ),
-              // Bottom buttons section
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  WideElevatedButton(
-                    label: _isLoading ? 'Creating Account...' : 'Create Account',
-                    onPressed: _isLoading ? null : _handleSignUp,
-                    backgroundColor: colorScheme.primary,
-                    textColor: colorScheme.onPrimary,
-                    borderRadius: 24,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    elevation: 10,
-                    margin: EdgeInsets.symmetric(horizontal: 0),
-                  ),
-                  SizedBox(height: 24.h),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+
+                // Fixed bottom area with buttons
+                Container(
+                  padding: EdgeInsets.only(bottom: 24.h),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        "Already have an account? ",
-                        style: AppTextStyles.bodyMedium
-                            .copyWith(color: colorScheme.onSurfaceVariant),
+                      // Sign Up Button
+                      WideElevatedButton(
+                        label: _isLoading ? 'Creating Account...' : 'Create Account',
+                        onPressed: _isLoading ? null : _handleSignUp,
+                        backgroundColor: colorScheme.primary,
+                        textColor: colorScheme.onPrimary,
+                        borderRadius: 24,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        elevation: 10,
+                        margin: EdgeInsets.symmetric(horizontal: 0),
                       ),
-                      GestureDetector(
-                        onTap: () => context.goToLogin(),
-                        child: Text(
-                          "Login",
-                          style: AppTextStyles.bodyMedium.copyWith(
-                            color: colorScheme.primary,
-                            fontWeight: FontWeight.bold,
+                      SizedBox(height: 16.h),
+
+                      // Sign in link
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            "Already have an account? ",
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
                           ),
-                        ),
+                          GestureDetector(
+                            onTap: () {
+                              context.go('/login');
+                            },
+                            child: Text(
+                              "Sign In",
+                              style: AppTextStyles.bodyMedium.copyWith(
+                                color: colorScheme.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                  SizedBox(height: 28.h),
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
