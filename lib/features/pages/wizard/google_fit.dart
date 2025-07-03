@@ -8,6 +8,7 @@ import '../../../core/custom_widgets/health_status_card.dart';
 import '../../../core/custom_widgets/wizard_button.dart';
 import '../../../core/services/health_service.dart';
 import '../../providers/wizard_provider.dart';
+import 'wizard13.dart';
 
 class Wizard21 extends StatefulWidget {
   const Wizard21({super.key});
@@ -22,6 +23,13 @@ class _Wizard21State extends State<Wizard21> {
   bool _isConnected = false;
   String _lastSyncTime = '';
   Map<String, dynamic> _healthData = {};
+
+  void _navigateToNotifications(BuildContext context) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const Wizard13()),
+    );
+  }
 
   @override
   void initState() {
@@ -169,10 +177,8 @@ class _Wizard21State extends State<Wizard21> {
               WizardButton(
                 label: _isConnecting ? 'Connecting...' : 'Done',
                 onPressed: _isConnecting 
-                  ? () {} // Provide empty function when connecting
-                  : () {
-                      Provider.of<WizardProvider>(context, listen: false).nextPage();
-                    },
+                  ? () {} // Empty function when connecting
+                  : () => _navigateToNotifications(context),
               ),
               SizedBox(height: 34.h),
             ],

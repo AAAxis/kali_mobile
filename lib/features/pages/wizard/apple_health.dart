@@ -8,6 +8,7 @@ import '../../../core/custom_widgets/health_status_card.dart';
 import '../../../core/custom_widgets/wizard_button.dart';
 import '../../../core/services/health_service.dart';
 import '../../providers/wizard_provider.dart';
+import 'wizard13.dart';
 
 class Wizard20 extends StatefulWidget {
   const Wizard20({super.key});
@@ -21,7 +22,13 @@ class _Wizard20State extends State<Wizard20> {
   bool _isConnecting = false;
   bool _isConnected = false;
   String _lastSyncTime = '';
-  Map<String, dynamic> _healthData = {};
+
+  void _navigateToNotifications(BuildContext context) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const Wizard13()),
+    );
+  }
 
   @override
   void initState() {
@@ -57,6 +64,7 @@ class _Wizard20State extends State<Wizard20> {
   Future<void> _connectToAppleHealth() async {
     setState(() {
       _isConnecting = true;
+      _isConnected = true; // Update switch immediately to show connecting state
     });
 
     try {
@@ -64,6 +72,9 @@ class _Wizard20State extends State<Wizard20> {
       final isAvailable = await _healthService.isHealthDataAvailable();
       if (!isAvailable) {
         _showError('Apple Health is not available on this device');
+        setState(() {
+          _isConnected = false;
+        });
         return;
       }
 
@@ -71,22 +82,28 @@ class _Wizard20State extends State<Wizard20> {
       final authorized = await _healthService.requestPermissions();
       if (!authorized) {
         _showError('Apple Health permissions not granted');
+        setState(() {
+          _isConnected = false;
+        });
         return;
       }
 
       // Sync health data
       final result = await _healthService.syncAllHealthData();
       if (result['success']) {
-        setState(() {
-          _healthData = result;
-        });
         _showSuccess('Successfully connected to Apple Health');
         await _checkConnectionStatus();
       } else {
         _showError('Failed to sync health data: ${result['error']}');
+        setState(() {
+          _isConnected = false;
+        });
       }
     } catch (e) {
       _showError('Error connecting to Apple Health: $e');
+      setState(() {
+        _isConnected = false;
+      });
     } finally {
       setState(() {
         _isConnecting = false;
@@ -161,73 +178,15 @@ class _Wizard20State extends State<Wizard20> {
                   }
                 },
               ),
-              if (_isConnected && _healthData.isNotEmpty) ...[
-                SizedBox(height: 20.h),
-                _buildHealthDataCard(),
-              ],
               const Spacer(),
               WizardButton(
-                label: _isConnecting ? 'Connecting...' : 'Done',
-                onPressed: _isConnecting 
-                  ? () {} // Provide empty function when connecting
-                  : () {
-                      Provider.of<WizardProvider>(context, listen: false).nextPage();
-                    },
+                label: 'Done',
+                onPressed: () => _navigateToNotifications(context),
               ),
               SizedBox(height: 34.h),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildHealthDataCard() {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: EdgeInsets.all(16.w),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(12.r),
-        border: Border.all(color: colorScheme.outline),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Synced Data',
-            style: AppTextStyles.bodyLarge.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          SizedBox(height: 12.h),
-          if (_healthData['steps'] != null)
-            _buildDataRow('Steps', '${_healthData['steps']}'),
-          if (_healthData['sleep'] != null)
-            _buildDataRow('Sleep', '${_healthData['sleep'].toStringAsFixed(1)}h'),
-          if (_healthData['calories'] != null)
-            _buildDataRow('Calories Burned', '${_healthData['calories'].round()}'),
-          if (_healthData['heartRate'] != null)
-            _buildDataRow('Heart Rate', '${_healthData['heartRate'].round()} bpm'),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDataRow(String label, String value) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 4.h),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: AppTextStyles.bodyMedium),
-          Text(
-            value,
-            style: AppTextStyles.bodyMedium.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
       ),
     );
   }

@@ -7,6 +7,7 @@ import '../../../core/extension/navigation_extention.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/store/shared_pref.dart';
 import '../dashboard/dashboard_screen.dart';
+import '../auth/login_screen.dart';
 
 class Wizard14 extends StatefulWidget {
   const Wizard14({super.key});
@@ -17,6 +18,13 @@ class Wizard14 extends StatefulWidget {
 
 class _Wizard14State extends State<Wizard14> {
   int selectedRating = 0;
+
+  void _navigateToAuth() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+    );
+  }
 
   final List<Map<String, dynamic>> reviews = [
     {
@@ -135,7 +143,7 @@ class _Wizard14State extends State<Wizard14> {
                     onPressed: () async {
                       // Mark wizard as completed
                       await SharedPref.setWizardCompleted(true);
-                      context.goToLogin();
+                      _navigateToAuth();
                     },
                     padding: EdgeInsets.symmetric(vertical: 18.h),
                   ),

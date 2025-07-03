@@ -130,6 +130,30 @@ class WizardProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void reset() {
+    currentIndex = 0;
+    _height = 175;
+    _isMetric = true;
+    _age = 19;
+    _selectedGoal = null;
+    _selectedDiet = null;
+    _selectedWorkoutIndex = null;
+    _goalSpeed = 0.9;
+    _selectedGender = null;
+    _weight = 70.0;
+    _isKg = true;
+    _selectedSocialMedia = null;
+    
+    // Reset scroll controller
+    _scrollController?.dispose();
+    _scrollController = null;
+    
+    // Reset page controller
+    pageController.jumpToPage(0);
+    
+    notifyListeners();
+  }
+
   // Helper methods to check if selections are valid
   bool isGenderSelected() {
     return _selectedGender != null;

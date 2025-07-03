@@ -86,8 +86,8 @@
 		<string>remote-notification</string>
 	</array>
 	<key>NSHealthShareUsageDescription</key>
-	<string>We need access to your health data to provide personalized fitness and nutrition insights</string>
+	<string>We need access to your health data to track your fitness progress and provide personalized recommendations.</string>
 	<key>NSHealthUpdateUsageDescription</key>
-	<string>We need permission to update your health data to track your fitness progress</string>
+	<string>We need permission to update your health data to keep your fitness information in sync.</string>
 </dict>
 </plist>

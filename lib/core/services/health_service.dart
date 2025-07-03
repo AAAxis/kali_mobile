@@ -9,6 +9,15 @@ class HealthService {
 
   final Health _health = Health();
   bool _isConnected = false;
+  static const String _lastSyncKey = 'last_health_sync';
+
+  // Define the types we want to read from HealthKit
+  static const List<HealthDataType> _dataTypes = [
+    HealthDataType.STEPS,
+    HealthDataType.WEIGHT,
+    HealthDataType.HEIGHT,
+    HealthDataType.SLEEP_IN_BED,
+  ];
 
   bool get isConnected => _isConnected;
 
@@ -30,57 +39,17 @@ class HealthService {
   // Request health permissions
   Future<bool> requestPermissions() async {
     try {
-      // Check if Health Connect is available first (Android only)
-      if (Platform.isAndroid) {
-        final status = await _health.getHealthConnectSdkStatus();
-        if (status != HealthConnectSdkStatus.sdkAvailable) {
-          print('Health Connect SDK not available on this device. Status: $status');
-          return false;
-        }
-      }
-
-      final types = [
-        HealthDataType.STEPS,
-        HealthDataType.HEIGHT,
-        HealthDataType.WEIGHT,
-        HealthDataType.ACTIVE_ENERGY_BURNED,
-        HealthDataType.HEART_RATE,
-      ];
-
-      final permissions = List.generate(
-        types.length,
-        (index) => HealthDataAccess.READ,
-      );
-
-      final bool authorized = await _health.requestAuthorization(
-        types,
-        permissions: permissions,
-      );
-
-      if (authorized) {
-        print('✅ Health permissions granted successfully');
-        _isConnected = true;
-        
-        // Save connection status
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('health_connected', true);
-        await prefs.setInt('health_last_sync', DateTime.now().millisecondsSinceEpoch);
-        
-        print('✅ Health Connect integration successful');
-      } else {
+      final permissions = List.filled(_dataTypes.length, HealthDataAccess.READ);
+      final requested = await _health.requestAuthorization(_dataTypes, permissions: permissions);
+      
+      if (!requested) {
         print('❌ Health permissions denied by user');
-        print('ℹ️ Users can grant permissions later in Health Connect settings');
-        _isConnected = false;
-        
-        // Save denied status
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('health_connected', false);
+        print('ℹ️ Users can grant permissions later in Health settings');
       }
-
-      return authorized;
+      
+      return requested;
     } catch (e) {
       print('Error requesting health permissions: $e');
-      _isConnected = false;
       return false;
     }
   }
@@ -225,54 +194,102 @@ class HealthService {
   // Sync all health data
   Future<Map<String, dynamic>> syncAllHealthData() async {
     try {
+      if (!await isHealthDataAvailable()) {
+        return {'success': false, 'error': 'Health data not available'};
+      }
+
+      final now = DateTime.now();
+      final yesterday = now.subtract(const Duration(days: 1));
+
+      // Initialize result map
+      final Map<String, dynamic> result = {'success': true};
+
+      // Get steps
+      try {
+        final steps = await _health.getTotalStepsInInterval(yesterday, now);
+        if (steps != null) {
+          result['steps'] = steps;
+        }
+      } catch (e) {
+        print('Error getting steps: $e');
+      }
+
+      // Get sleep
+      try {
+        final sleepData = await _health.getHealthDataFromTypes(
+          startTime: yesterday,
+          endTime: now,
+          types: [HealthDataType.SLEEP_IN_BED],
+        );
+        double totalSleepHours = 0;
+        for (var sleep in sleepData) {
+          if (sleep.value is NumericHealthValue) {
+            totalSleepHours += (sleep.value as NumericHealthValue).numericValue / 3600; // Convert seconds to hours
+          }
+        }
+        if (totalSleepHours > 0) {
+          result['sleep'] = totalSleepHours;
+        }
+      } catch (e) {
+        print('Error getting sleep data: $e');
+      }
+
+      // Get weight
+      try {
+        final weightData = await _health.getHealthDataFromTypes(
+          startTime: yesterday,
+          endTime: now,
+          types: [HealthDataType.WEIGHT],
+        );
+        if (weightData.isNotEmpty) {
+          final latestWeight = weightData.last;
+          if (latestWeight.value is NumericHealthValue) {
+            result['weight'] = (latestWeight.value as NumericHealthValue).numericValue;
+          }
+        }
+      } catch (e) {
+        print('Error getting weight: $e');
+      }
+
+      // Get height
+      try {
+        final heightData = await _health.getHealthDataFromTypes(
+          startTime: yesterday,
+          endTime: now,
+          types: [HealthDataType.HEIGHT],
+        );
+        if (heightData.isNotEmpty) {
+          final latestHeight = heightData.last;
+          if (latestHeight.value is NumericHealthValue) {
+            result['height'] = (latestHeight.value as NumericHealthValue).numericValue;
+          }
+        }
+      } catch (e) {
+        print('Error getting height: $e');
+      }
+
+      // Save last sync time
       final prefs = await SharedPreferences.getInstance();
-      
-      // Get all health data
-      final steps = await getStepsData();
-      final sleep = await getSleepData();
-      final height = await getHeightData();
-      final weight = await getWeightData();
-      final calories = await getCaloriesBurned();
-      final heartRate = await getHeartRateData();
+      await prefs.setString(_lastSyncKey, now.toIso8601String());
 
-      // Save to SharedPreferences
-      await prefs.setInt('health_steps', steps);
-      await prefs.setDouble('health_sleep', sleep);
-      if (height != null) await prefs.setDouble('health_height', height);
-      if (weight != null) await prefs.setDouble('health_weight', weight);
-      await prefs.setDouble('health_calories', calories);
-      if (heartRate != null) await prefs.setDouble('health_heart_rate', heartRate);
-      await prefs.setBool('health_connected', true);
-      await prefs.setInt('health_last_sync', DateTime.now().millisecondsSinceEpoch);
-
-      return {
-        'steps': steps,
-        'sleep': sleep,
-        'height': height,
-        'weight': weight,
-        'calories': calories,
-        'heartRate': heartRate,
-        'success': true,
-      };
+      return result;
     } catch (e) {
       print('Error syncing health data: $e');
-      return {
-        'success': false,
-        'error': e.toString(),
-      };
+      return {'success': false, 'error': e.toString()};
     }
   }
 
   // Check if health data is available
   Future<bool> isHealthDataAvailable() async {
     try {
-      // Try to get steps data to check if health is available
-      final stepsData = await _health.getHealthDataFromTypes(
-        types: [HealthDataType.STEPS],
-        startTime: DateTime.now().subtract(const Duration(days: 1)),
-        endTime: DateTime.now(),
-      );
-      return true; // If we can get data, health is available
+      // Check if health data is available
+      bool isAvailable = true;
+      try {
+        await _health.requestAuthorization([HealthDataType.STEPS]);
+      } catch (e) {
+        isAvailable = false;
+      }
+      return isAvailable;
     } catch (e) {
       print('Error checking health data availability: $e');
       return false;
@@ -288,8 +305,8 @@ class HealthService {
   Future<DateTime?> getLastSyncTime() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final timestamp = prefs.getInt('health_last_sync');
-      return timestamp != null ? DateTime.fromMillisecondsSinceEpoch(timestamp) : null;
+      final lastSync = prefs.getString(_lastSyncKey);
+      return lastSync != null ? DateTime.parse(lastSync) : null;
     } catch (e) {
       print('Error getting last sync time: $e');
       return null;
@@ -300,7 +317,8 @@ class HealthService {
   Future<bool> isHealthConnected() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      return prefs.getBool('health_connected') ?? false;
+      final lastSync = prefs.getString(_lastSyncKey);
+      return lastSync != null;
     } catch (e) {
       print('Error checking health connection: $e');
       return false;

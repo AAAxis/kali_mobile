@@ -12,6 +12,7 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../core/store/shared_pref.dart';
 import 'login_with_email_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../dashboard/dashboard_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -176,14 +177,24 @@ class _LoginScreenState extends State<LoginScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  IconButton(
-                    onPressed: () {
-                      context.go('/dashboard');
-                    },
-                    icon: Icon(
-                      Icons.close,
-                      color: colorScheme.onSurface,
-                      size: 24.sp,
+                  Container(
+                    margin: EdgeInsets.only(top: 8.h, right: 8.w),
+                    child: IconButton(
+                      onPressed: _isLoading ? null : () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const DashboardScreen()),
+                        );
+                      },
+                      icon: Icon(
+                        Icons.close,
+                        color: colorScheme.onSurface,
+                        size: 24.sp,
+                      ),
+                      style: IconButton.styleFrom(
+                        minimumSize: Size(44.w, 44.h),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
                     ),
                   ),
                 ],

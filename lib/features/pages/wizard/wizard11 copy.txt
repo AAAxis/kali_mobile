@@ -1,0 +1,377 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:kali/core/constant/app_animations.dart';
+import 'package:kali/core/constant/app_icons.dart';
+import 'package:kali/core/constant/constants.dart';
+import 'package:kali/core/custom_widgets/calorie_gauage.dart';
+import 'package:kali/core/theme/app_text_styles.dart';
+import 'package:kali/features/providers/wizard_provider.dart';
+import 'package:provider/provider.dart';
+import 'package:kali/core/custom_widgets/wizard_button.dart';
+
+class Wizard11 extends StatelessWidget {
+  const Wizard11({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      body: SafeArea(
+        child: Stack(
+          children: [
+            // Scrollable content
+            SingleChildScrollView(
+              padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 32.h),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(height: Constants.beforeIcon),
+                  Center(
+                      child: Image.asset(AppIcons.kali,
+                          color: colorScheme.primary)),
+                  SizedBox(height: Constants.afterIcon),
+
+                  Center(
+                    child: Image.asset(
+                      AppAnimations.cloud,
+                      height: 180.h,
+                      gaplessPlayback: true,
+                      filterQuality: FilterQuality.low,
+                      cacheWidth: (ScreenUtil().screenWidth * 0.6).toInt(),
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                  Center(
+                    child: Text(
+                      "Congratulations!!",
+                      style: AppTextStyles.headingMedium.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
+                          fontSize: 28),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  Center(
+                    child: Text(
+                      "Your custom plan is all set!",
+                      style: AppTextStyles.bodyLarge.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
+                          fontSize: 28),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+
+                  SizedBox(height: 18.h),
+                  Column(
+                    children: [
+                      Text(
+                        "You should lose:",
+                        style: AppTextStyles.bodyLarge.copyWith(
+                            color: colorScheme.onSurface, fontSize: 20),
+                      ),
+                      SizedBox(
+                        height: 5.h,
+                      ),
+                      Card(
+                        margin: EdgeInsets.symmetric(horizontal: 70.sp),
+                        elevation: 5,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(50.r)),
+                        child: Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Text(
+                              "10.0 Kgs by July 31",
+                              style: AppTextStyles.bodyLarge.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: colorScheme.onSurface,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  SizedBox(height: 28.h),
+
+// Recommendations Section
+                  Card(
+                    elevation: 5,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16.r),
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                          vertical: 20.h, horizontal: 16.w),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Daily recommendations",
+                            style: AppTextStyles.bodyLarge
+                                .copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          SizedBox(height: 4.h),
+                          Text(
+                            "You can edit this anytime",
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              color:
+                                  colorScheme.onSurface.withValues(alpha: 0.6),
+                            ),
+                          ),
+                          SizedBox(height: 16.h),
+
+                          // 2x2 CalorieGauge Grid
+                          GridView.count(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 12.w,
+                            mainAxisSpacing: 16.h,
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            childAspectRatio: 1.1, // Adjust for spacing
+                            children: const [
+                              CalorieGauge(
+                                currentValue: 151,
+                                maxValue: 200,
+                                filledColor: Colors.black87,
+                                unfilledColor: Colors.grey,
+                              ),
+                              CalorieGauge(
+                                currentValue: 108,
+                                maxValue: 200,
+                                filledColor: Colors.green,
+                                unfilledColor: Colors.grey,
+                              ),
+                              CalorieGauge(
+                                currentValue: 40,
+                                maxValue: 100,
+                                filledColor: Colors.amber,
+                                unfilledColor: Colors.grey,
+                              ),
+                              CalorieGauge(
+                                currentValue: 110,
+                                maxValue: 150,
+                                filledColor: Colors.red,
+                                unfilledColor: Colors.grey,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  SizedBox(height: 28.h),
+
+                  // Goals section
+                  Card(
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(22.r)),
+                    elevation: 5,
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                          vertical: 20.h, horizontal: 16.w),
+                      child: Container(
+                        padding: EdgeInsets.all(16.w),
+                        decoration: BoxDecoration(
+                          color: colorScheme.surface,
+                          borderRadius: BorderRadius.circular(20.r),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "How to reach your goals:",
+                              style: AppTextStyles.bodyLarge.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 16.h),
+                            _GoalRow(
+                              icon: AppIcons.goal1,
+                              color: Colors.green[600]!,
+                              text: "Use health scores to improve your routine",
+                            ),
+                            SizedBox(height: 8.h),
+                            _GoalRow(
+                              icon: AppIcons.goal2,
+                              color: Colors.indigo,
+                              text: "Follow your daily calorie recommendations",
+                            ),
+                            SizedBox(height: 8.h),
+                            _GoalRow(
+                              icon: AppIcons.goal3,
+                              color: Colors.redAccent,
+                              text: "Track your food",
+                            ),
+                            SizedBox(height: 8.h),
+                            _GoalRow(
+                              icon: AppIcons.goal4,
+                              color: Colors.teal,
+                              text: "Balance your carbs, proteins and fats.",
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  SizedBox(height: 100.h), // Space for button
+                ],
+              ),
+            ),
+
+            // Continue button
+            Positioned(
+              left: 100,
+              right: 100,
+              bottom: 24.h,
+              child: WizardButton(
+                label: 'Continue',
+                onPressed: () {
+                  Provider.of<WizardProvider>(context, listen: false)
+                      .nextPage();
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ----- Helper widgets -----
+
+// class _MetricBox extends StatelessWidget {
+//   final IconData icon;
+//   final Color color;
+//   final String label;
+//   final String value;
+//   final Color valueColor;
+//   final Color arcColor;
+//   final double progress;
+//   const _MetricBox({
+//     required this.icon,
+//     required this.color,
+//     required this.label,
+//     required this.value,
+//     required this.valueColor,
+//     required this.arcColor,
+//     required this.progress,
+//   });
+
+//   @override
+//   Widget build(BuildContext context) {
+//     final colorScheme = Theme.of(context).colorScheme;
+//     return Expanded(
+//       child: Container(
+//         margin: EdgeInsets.symmetric(horizontal: 2.w, vertical: 2.h),
+//         padding: EdgeInsets.symmetric(vertical: 12.h),
+//         decoration: BoxDecoration(
+//           color: colorScheme.surface,
+//           borderRadius: BorderRadius.circular(18.r),
+//         ),
+//         child: Column(
+//           children: [
+//             Icon(icon, color: color, size: 18.sp),
+//             SizedBox(height: 3.h),
+//             Text(
+//               label,
+//               style: AppTextStyles.bodyMedium.copyWith(
+//                 fontWeight: FontWeight.bold,
+//                 color: Colors.black87,
+//               ),
+//             ),
+//             SizedBox(height: 6.h),
+//             Stack(
+//               alignment: Alignment.center,
+//               children: [
+//                 SizedBox(
+//                   width: 44.w,
+//                   height: 44.w,
+//                   child: CircularProgressIndicator(
+//                     value: progress,
+//                     strokeWidth: 4,
+//                     valueColor: AlwaysStoppedAnimation<Color>(arcColor),
+//                     backgroundColor: Colors.grey.shade200,
+//                   ),
+//                 ),
+//                 Text(
+//                   value,
+//                   style: AppTextStyles.bodyLarge.copyWith(
+//                     color: valueColor,
+//                     fontWeight: FontWeight.bold,
+//                     fontSize: 15.sp,
+//                   ),
+//                 ),
+//               ],
+//             ),
+//             SizedBox(height: 3.h),
+//             Align(
+//               alignment: Alignment.bottomRight,
+//               child: Icon(Icons.edit, size: 16.sp, color: Colors.grey[400]),
+//             ),
+//           ],
+//         ),
+//       ),
+//     );
+//   }
+// }
+
+class _GoalRow extends StatelessWidget {
+  final String icon;
+  final Color color;
+  final String text;
+  const _GoalRow({
+    required this.icon,
+    required this.color,
+    required this.text,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: 10.h),
+      child: Container(
+        height: 50.h,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 240),
+          borderRadius: BorderRadius.circular(8.r),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.only(left: 4.sp),
+              width: 28.w,
+              height: 28.w,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.13),
+                borderRadius: BorderRadius.circular(8.r),
+              ),
+              child: Image.asset(
+                icon,
+                height: 18.h,
+                width: 18.w,
+              ),
+            ),
+            SizedBox(width: 14.w),
+            Expanded(
+              child: Text(
+                text,
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: Colors.black87,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

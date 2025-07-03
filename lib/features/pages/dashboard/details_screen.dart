@@ -4,15 +4,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:easy_localization/easy_localization.dart';
+
+import 'ingridients_edit.dart';
+import 'nutrions_edit.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../../core/services/image_cache_service.dart';
+import '../../models/meal_model.dart';
 import '../../../core/services/nutrition_database_service.dart';
 import '../../../core/services/translation_service.dart';
-import '../../models/meal_model.dart';
-import 'nutrions_edit.dart';
-import 'ingridients_edit.dart';
-import 'ingridients_add.dart';
-
+import '../../../core/services/image_cache_service.dart';
 
 
 class AnalysisDetailsScreen extends StatefulWidget {

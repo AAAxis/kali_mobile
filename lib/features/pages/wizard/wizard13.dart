@@ -10,6 +10,7 @@ import '../../providers/wizard_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'wizard14.dart';
 
 class Wizard13 extends StatefulWidget {
   const Wizard13({super.key});
@@ -21,6 +22,13 @@ class Wizard13 extends StatefulWidget {
 class _Wizard13State extends State<Wizard13> {
   bool _isRequesting = false;
   PermissionStatus? _notificationStatus;
+
+  void _navigateToComments() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const Wizard14()),
+    );
+  }
 
   @override
   void initState() {
@@ -168,7 +176,7 @@ class _Wizard13State extends State<Wizard13> {
                         final prefs = await SharedPreferences.getInstance();
                         await prefs.setBool('notifications_enabled', false);
                         if (!mounted) return;
-                        Provider.of<WizardProvider>(context, listen: false).nextPage();
+                        _navigateToComments();
                       },
                       style: TextButton.styleFrom(
                         backgroundColor: colorScheme.surface,
@@ -228,7 +236,7 @@ class _Wizard13State extends State<Wizard13> {
                           await prefs.setBool('notifications_enabled', granted);
 
                           if (!mounted) return;
-                          Provider.of<WizardProvider>(context, listen: false).nextPage();
+                          _navigateToComments();
                         } catch (e) {
                           if (!mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -282,9 +290,7 @@ class _Wizard13State extends State<Wizard13> {
                 padding: EdgeInsets.only(bottom: 24.h),
                 child: WizardButton(
                   label: 'Continue',
-                  onPressed: () {
-                    Provider.of<WizardProvider>(context, listen: false).nextPage();
-                  },
+                  onPressed: _navigateToComments,
                   padding: EdgeInsets.symmetric(vertical: 18.h),
                 ),
               ),

@@ -131,6 +131,15 @@ class _PantrySectionState extends State<PantrySection> {
     
     final englishName = meal.getMealName('en');
     
+    // If meal name is empty, provide a fallback
+    if (englishName.isEmpty || englishName == 'Unknown' || englishName == 'Unknown Meal') {
+      final fallbackName = 'Analyzed Meal';
+      if (locale == 'en') {
+        return fallbackName;
+      }
+      return TranslationService.translateIngredientStatic(fallbackName, locale);
+    }
+    
     // If current locale is English, return as-is
     if (locale == 'en') {
       return englishName;
@@ -292,13 +301,11 @@ class _PantrySectionState extends State<PantrySection> {
                       Expanded(
                         child: Text(
                           _getTranslatedMealName(meal),
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(
-                                fontSize: 17,
-                                fontWeight: FontWeight.bold,
-                              ),
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -319,7 +326,7 @@ class _PantrySectionState extends State<PantrySection> {
                             DateFormat('HH:mm').format(meal.timestamp),
                             style: TextStyle(
                               fontSize: 12,
-                              color: Theme.of(context).colorScheme.onInverseSurface,
+                              color: Colors.white,
                             ),
                           ),
                         ),
@@ -334,7 +341,7 @@ class _PantrySectionState extends State<PantrySection> {
                         _getProcessingText(),
                         style: TextStyle(
                           fontSize: 14,
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                          color: Colors.black.withOpacity(0.7),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -370,54 +377,14 @@ class _PantrySectionState extends State<PantrySection> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => Scaffold(
-          appBar: AppBar(
-            title: Text(meal.name),
-          ),
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (meal.imageUrl != null)
-                  Image.network(
-                    meal.imageUrl!,
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    height: 200,
-                  ),
-                const SizedBox(height: 16),
-                Text(
-                  'Nutritional Information',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 8),
-                _buildNutritionRow('Calories', '${meal.calories.toStringAsFixed(1)} kcal'),
-                _buildNutritionRow('Protein', '${meal.protein.toStringAsFixed(1)}g'),
-                _buildNutritionRow('Carbs', '${meal.carbs.toStringAsFixed(1)}g'),
-                _buildNutritionRow('Fat', '${meal.fat.toStringAsFixed(1)}g'),
-              ],
-            ),
-          ),
-        ),
+        builder: (context) => AnalysisDetailsScreen(analysisId: meal.id),
       ),
     );
     // After returning, refresh meals via callback
     await widget.onRefresh();
   }
 
-  Widget _buildNutritionRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(fontSize: 16)),
-          Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        ],
-      ),
-    );
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -433,8 +400,10 @@ class _PantrySectionState extends State<PantrySection> {
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 child: Text(
                   'dashboard.your_pantry'.tr(),
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  style: TextStyle(
+                    fontSize: 22,
                     fontWeight: FontWeight.bold,
+                    color: Colors.black,
                   ),
                 ),
               ),
@@ -472,7 +441,7 @@ class _PantrySectionState extends State<PantrySection> {
                     Text(
                       'dashboard.no_meals'.tr(),
                       style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                        color: Colors.black.withOpacity(0.6),
                         fontSize: 16,
                       ),
                     ),
@@ -516,9 +485,7 @@ class _PantrySectionState extends State<PantrySection> {
                             child: Text(
                               'dashboard.cancel'.tr(),
                               style: TextStyle(
-                                color: Theme.of(context).brightness == Brightness.dark 
-                                    ? Colors.white 
-                                    : Theme.of(context).textTheme.bodyLarge?.color,
+                                color: Colors.black,
                               ),
                             ),
                           ),
@@ -607,13 +574,11 @@ class _PantrySectionState extends State<PantrySection> {
                                       Expanded(
                                         child: Text(
                                           _getTranslatedMealName(meal),
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .titleMedium
-                                              ?.copyWith(
-                                                fontSize: 17,
-                                                fontWeight: FontWeight.bold,
-                                              ),
+                                          style: TextStyle(
+                                            fontSize: 17,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.black,
+                                          ),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                         ),
@@ -634,7 +599,7 @@ class _PantrySectionState extends State<PantrySection> {
                                             DateFormat('HH:mm').format(meal.timestamp),
                                             style: TextStyle(
                                               fontSize: 12,
-                                              color: Theme.of(context).colorScheme.onInverseSurface,
+                                              color: Colors.white,
                                             ),
                                           ),
                                         ),
@@ -647,7 +612,7 @@ class _PantrySectionState extends State<PantrySection> {
                                       Icon(
                                         Icons.local_fire_department,
                                         size: 20,
-                                        color: Theme.of(context).colorScheme.onSurface,
+                                        color: Colors.black,
                                       ),
                                       const SizedBox(width: 4),
                                       Text(
@@ -655,7 +620,7 @@ class _PantrySectionState extends State<PantrySection> {
                                         style: TextStyle(
                                           fontWeight: FontWeight.normal,
                                           fontSize: 16,
-                                          color: Theme.of(context).colorScheme.onSurface,
+                                          color: Colors.black,
                                         ),
                                       ),
                                     ],
@@ -678,7 +643,7 @@ class _PantrySectionState extends State<PantrySection> {
                                       Text(
                                         '${macros['proteins']?.toStringAsFixed(0) ?? 0}g',
                                         style: TextStyle(
-                                          color: Theme.of(context).colorScheme.onSurface,
+                                          color: Colors.black,
                                           fontWeight: FontWeight.w600,
                                           fontSize: 14,
                                         ),
@@ -693,7 +658,7 @@ class _PantrySectionState extends State<PantrySection> {
                                       Text(
                                         '${macros['carbs']?.toStringAsFixed(0) ?? 0}g',
                                         style: TextStyle(
-                                          color: Theme.of(context).colorScheme.onSurface,
+                                          color: Colors.black,
                                           fontWeight: FontWeight.w600,
                                           fontSize: 14,
                                         ),
@@ -708,7 +673,7 @@ class _PantrySectionState extends State<PantrySection> {
                                       Text(
                                         '${macros['fats']?.toStringAsFixed(0) ?? 0}g',
                                         style: TextStyle(
-                                          color: Theme.of(context).colorScheme.onSurface,
+                                          color: Colors.black,
                                           fontWeight: FontWeight.w600,
                                           fontSize: 14,
                                         ),

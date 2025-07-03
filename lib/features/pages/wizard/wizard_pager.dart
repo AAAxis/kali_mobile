@@ -7,6 +7,7 @@ import './apple_health.dart';
 import './google_fit.dart';
 import '../../providers/wizard_provider.dart';
 import 'package:provider/provider.dart';
+import '../auth/login_screen.dart';
 
 import 'wizard1.dart';
 import 'wizard2.dart';
@@ -41,13 +42,13 @@ class WizardPager extends StatelessWidget {
       const Wizard9(),
       const Wizard10(),
       const LoadingPage(),
-      const Wizard11(), //have to work on this, guage is left in here
+      const Wizard11(),
       const Wizard18(),
       const Wizard12(),
-      // Use platform-specific health screens
       if (Platform.isIOS) const Wizard20() else const Wizard21(),
       const Wizard13(),
       const Wizard14(),
+      const LoginScreen(),
     ];
   }
 
@@ -56,9 +57,10 @@ class WizardPager extends StatelessWidget {
     final provider = Provider.of<WizardProvider>(context);
     final colorScheme = Theme.of(context).colorScheme;
     
-    // Index of LoadingPage
-    const loadingIndex = 11; // adjust based on actual position
-    final showIndicators = provider.currentIndex != loadingIndex;
+    // Index of LoadingPage and results screen
+    const loadingIndex = 11; // LoadingPage index
+    const resultsIndex = 12; // Wizard11 (results) index
+    final showIndicators = provider.currentIndex != loadingIndex && provider.currentIndex != resultsIndex;
     
     // Calculate visible dots range (show 5 dots at a time)
     final currentIndex = provider.currentIndex;
@@ -80,7 +82,12 @@ class WizardPager extends StatelessWidget {
               controller: provider.pageController,
               physics: const NeverScrollableScrollPhysics(),
               onPageChanged: provider.onPageChanged,
-              children: _getScreens(),
+              children: _getScreens().map((screen) => 
+                Container(
+                  color: colorScheme.surface,
+                  child: screen,
+                )
+              ).toList(),
             ),
           ),
           if (showIndicators) ...[

@@ -266,7 +266,7 @@ class _MealNutritionEditScreenState extends State<MealNutritionEditScreen> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Colors.blue),
+                  borderSide: const BorderSide(color: Colors.black),
                 ),
                 suffixText: unitKey?.tr() ?? '',
                 suffixStyle: const TextStyle(color: Colors.black54),
@@ -288,7 +288,7 @@ class _MealNutritionEditScreenState extends State<MealNutritionEditScreen> {
             onPressed: () => Navigator.pop(context),
             child: Text(
               'common.cancel'.tr(),
-              style: const TextStyle(color: Colors.grey),
+              style: const TextStyle(color: Colors.black),
             ),
           ),
           ElevatedButton(
@@ -300,7 +300,7 @@ class _MealNutritionEditScreenState extends State<MealNutritionEditScreen> {
               }
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
+              backgroundColor: Colors.black,
               foregroundColor: Colors.white,
             ),
             child: Text('common.save'.tr()),

@@ -1,16 +1,119 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constant/app_animations.dart';
 import '../../../core/constant/app_icons.dart';
 import '../../../core/constant/constants.dart';
 import '../../../core/custom_widgets/calorie_gauage.dart';
 import '../../../core/theme/app_text_styles.dart';
-import '../../providers/wizard_provider.dart';
+import '../../../features/providers/wizard_provider.dart';
 import 'package:provider/provider.dart';
 import '../../../core/custom_widgets/wizard_button.dart';
+import 'wizard18.dart';  // Add import for Wizard18
 
-class Wizard11 extends StatelessWidget {
+class Wizard11 extends StatefulWidget {
   const Wizard11({super.key});
+
+  @override
+  State<Wizard11> createState() => _Wizard11State();
+}
+
+class _Wizard11State extends State<Wizard11> {
+  double calories = 2000;
+  double proteins = 150;
+  double carbs = 300;
+  double fats = 65;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNutritionGoals();
+  }
+
+  Future<void> _loadNutritionGoals() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      calories = prefs.getDouble('nutrition_goal_calories') ?? 2000;
+      proteins = prefs.getDouble('nutrition_goal_protein') ?? 150;
+      carbs = prefs.getDouble('nutrition_goal_carbs') ?? 300;
+      fats = prefs.getDouble('nutrition_goal_fats') ?? 65;
+    });
+  }
+
+  Future<void> _saveNutritionGoals() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('nutrition_goal_calories', calories);
+    await prefs.setDouble('nutrition_goal_protein', proteins);
+    await prefs.setDouble('nutrition_goal_carbs', carbs);
+    await prefs.setDouble('nutrition_goal_fats', fats);
+  }
+
+  Future<void> _showEditDialog(String title, double currentValue, Function(double) onSave) async {
+    final controller = TextEditingController(text: currentValue.toStringAsFixed(0));
+    
+    return showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        title: Text(
+          'Edit $title',
+          style: const TextStyle(
+            color: Colors.black87,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(color: Colors.black87),
+              decoration: InputDecoration(
+                labelText: title,
+                labelStyle: const TextStyle(color: Colors.black54),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.grey.shade400),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Colors.blue),
+                ),
+                suffixText: title == 'Calories' ? 'kcal' : 'g',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: Colors.grey[600]),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.black87,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              final newValue = double.tryParse(controller.text);
+              if (newValue != null && newValue > 0) {
+                onSave(newValue);
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -18,18 +121,13 @@ class Wizard11 extends StatelessWidget {
 
     return Scaffold(
       body: SafeArea(
-        child: Stack(
-          children: [
-            // Scrollable content
-            SingleChildScrollView(
-              padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 32.h),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
+        child: SingleChildScrollView(
+          padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 32.h),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
                   SizedBox(height: Constants.beforeIcon),
-                  Center(
-                      child: Image.asset(AppIcons.kali,
-                          color: colorScheme.primary)),
+                  Center(child: Image.asset(AppIcons.kali, color: colorScheme.primary)),
                   SizedBox(height: Constants.afterIcon),
 
                   Center(
@@ -46,9 +144,10 @@ class Wizard11 extends StatelessWidget {
                     child: Text(
                       "Congratulations!!",
                       style: AppTextStyles.headingMedium.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: colorScheme.onSurface,
-                          fontSize: 28),
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
+                        fontSize: 28,
+                      ),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -56,9 +155,10 @@ class Wizard11 extends StatelessWidget {
                     child: Text(
                       "Your custom plan is all set!",
                       style: AppTextStyles.bodyLarge.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: colorScheme.onSurface,
-                          fontSize: 28),
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
+                        fontSize: 28,
+                      ),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -71,9 +171,7 @@ class Wizard11 extends StatelessWidget {
                         style: AppTextStyles.bodyLarge.copyWith(
                             color: colorScheme.onSurface, fontSize: 20),
                       ),
-                      SizedBox(
-                        height: 5.h,
-                      ),
+                      SizedBox(height: 5.h),
                       Card(
                         margin: EdgeInsets.symmetric(horizontal: 70.sp),
                         elevation: 5,
@@ -97,7 +195,7 @@ class Wizard11 extends StatelessWidget {
 
                   SizedBox(height: 28.h),
 
-// Recommendations Section
+                  // Recommendations Section
                   Card(
                     elevation: 5,
                     shape: RoundedRectangleBorder(
@@ -119,7 +217,7 @@ class Wizard11 extends StatelessWidget {
                             "You can edit this anytime",
                             style: AppTextStyles.bodyMedium.copyWith(
                               color:
-                                  colorScheme.onSurface.withValues(alpha: 0.6),
+                                  colorScheme.onSurface.withOpacity(0.6),
                             ),
                           ),
                           SizedBox(height: 16.h),
@@ -131,31 +229,63 @@ class Wizard11 extends StatelessWidget {
                             mainAxisSpacing: 16.h,
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
-                            childAspectRatio: 1.1, // Adjust for spacing
-                            children: const [
-                              CalorieGauge(
-                                currentValue: 151,
-                                maxValue: 200,
-                                filledColor: Colors.black87,
-                                unfilledColor: Colors.grey,
+                            childAspectRatio: 1.1,
+                            children: [
+                              GestureDetector(
+                                onTap: () async {
+                                  await _showEditDialog('Calories', calories, (value) {
+                                    setState(() => calories = value);
+                                    _saveNutritionGoals();
+                                  });
+                                },
+                                child: CalorieGauge(
+                                  currentValue: proteins,
+                                  maxValue: 200,
+                                  filledColor: Colors.black87,
+                                  unfilledColor: Colors.grey,
+                                ),
                               ),
-                              CalorieGauge(
-                                currentValue: 108,
-                                maxValue: 200,
-                                filledColor: Colors.green,
-                                unfilledColor: Colors.grey,
+                              GestureDetector(
+                                onTap: () async {
+                                  await _showEditDialog('Proteins', proteins, (value) {
+                                    setState(() => proteins = value);
+                                    _saveNutritionGoals();
+                                  });
+                                },
+                                child: CalorieGauge(
+                                  currentValue: proteins,
+                                  maxValue: 200,
+                                  filledColor: Colors.green,
+                                  unfilledColor: Colors.grey,
+                                ),
                               ),
-                              CalorieGauge(
-                                currentValue: 40,
-                                maxValue: 100,
-                                filledColor: Colors.amber,
-                                unfilledColor: Colors.grey,
+                              GestureDetector(
+                                onTap: () async {
+                                  await _showEditDialog('Carbs', carbs, (value) {
+                                    setState(() => carbs = value);
+                                    _saveNutritionGoals();
+                                  });
+                                },
+                                child: CalorieGauge(
+                                  currentValue: carbs,
+                                  maxValue: 100,
+                                  filledColor: Colors.amber,
+                                  unfilledColor: Colors.grey,
+                                ),
                               ),
-                              CalorieGauge(
-                                currentValue: 110,
-                                maxValue: 150,
-                                filledColor: Colors.red,
-                                unfilledColor: Colors.grey,
+                              GestureDetector(
+                                onTap: () async {
+                                  await _showEditDialog('Fats', fats, (value) {
+                                    setState(() => fats = value);
+                                    _saveNutritionGoals();
+                                  });
+                                },
+                                child: CalorieGauge(
+                                  currentValue: fats,
+                                  maxValue: 150,
+                                  filledColor: Colors.red,
+                                  unfilledColor: Colors.grey,
+                                ),
                               ),
                             ],
                           ),
@@ -219,113 +349,45 @@ class Wizard11 extends StatelessWidget {
                     ),
                   ),
 
-                  SizedBox(height: 100.h), // Space for button
+                  SizedBox(height: 40.h),
+
+                  // Continue Button
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 32.w, vertical: 24.h),
+                    child: WizardButton(
+                      label: 'Continue',
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          PageRouteBuilder(
+                            pageBuilder: (context, animation, secondaryAnimation) => const Wizard18(),
+                            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                              const begin = Offset(1.0, 0.0);
+                              const end = Offset.zero;
+                              const curve = Curves.easeInOut;
+                              var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+                              var offsetAnimation = animation.drive(tween);
+                              return SlideTransition(position: offsetAnimation, child: child);
+                            },
+                            transitionDuration: const Duration(milliseconds: 300),
+                          ),
+                        );
+                      },
+                      padding: EdgeInsets.symmetric(vertical: 14.h),
+                    ),
+                  ),
                 ],
               ),
             ),
-
-            // Continue button
-            Positioned(
-              left: 100,
-              right: 100,
-              bottom: 24.h,
-              child: WizardButton(
-                label: 'Continue',
-                onPressed: () {
-                  Provider.of<WizardProvider>(context, listen: false)
-                      .nextPage();
-                },
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
 }
 
-// ----- Helper widgets -----
-
-// class _MetricBox extends StatelessWidget {
-//   final IconData icon;
-//   final Color color;
-//   final String label;
-//   final String value;
-//   final Color valueColor;
-//   final Color arcColor;
-//   final double progress;
-//   const _MetricBox({
-//     required this.icon,
-//     required this.color,
-//     required this.label,
-//     required this.value,
-//     required this.valueColor,
-//     required this.arcColor,
-//     required this.progress,
-//   });
-
-//   @override
-//   Widget build(BuildContext context) {
-//     final colorScheme = Theme.of(context).colorScheme;
-//     return Expanded(
-//       child: Container(
-//         margin: EdgeInsets.symmetric(horizontal: 2.w, vertical: 2.h),
-//         padding: EdgeInsets.symmetric(vertical: 12.h),
-//         decoration: BoxDecoration(
-//           color: colorScheme.surface,
-//           borderRadius: BorderRadius.circular(18.r),
-//         ),
-//         child: Column(
-//           children: [
-//             Icon(icon, color: color, size: 18.sp),
-//             SizedBox(height: 3.h),
-//             Text(
-//               label,
-//               style: AppTextStyles.bodyMedium.copyWith(
-//                 fontWeight: FontWeight.bold,
-//                 color: Colors.black87,
-//               ),
-//             ),
-//             SizedBox(height: 6.h),
-//             Stack(
-//               alignment: Alignment.center,
-//               children: [
-//                 SizedBox(
-//                   width: 44.w,
-//                   height: 44.w,
-//                   child: CircularProgressIndicator(
-//                     value: progress,
-//                     strokeWidth: 4,
-//                     valueColor: AlwaysStoppedAnimation<Color>(arcColor),
-//                     backgroundColor: Colors.grey.shade200,
-//                   ),
-//                 ),
-//                 Text(
-//                   value,
-//                   style: AppTextStyles.bodyLarge.copyWith(
-//                     color: valueColor,
-//                     fontWeight: FontWeight.bold,
-//                     fontSize: 15.sp,
-//                   ),
-//                 ),
-//               ],
-//             ),
-//             SizedBox(height: 3.h),
-//             Align(
-//               alignment: Alignment.bottomRight,
-//               child: Icon(Icons.edit, size: 16.sp, color: Colors.grey[400]),
-//             ),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-// }
-
 class _GoalRow extends StatelessWidget {
   final String icon;
   final Color color;
   final String text;
+
   const _GoalRow({
     required this.icon,
     required this.color,

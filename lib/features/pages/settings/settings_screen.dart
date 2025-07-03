@@ -17,7 +17,6 @@ import '../../../core/services/auth_service.dart';
 import '../wizard/wizard1.dart';  // Import first wizard step directly
 import 'user_info.dart';
 import 'notifications_screen.dart';
-import 'goals_edit.dart';
 import 'package:go_router/go_router.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -58,7 +57,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       });
     } else {
       setState(() {
-        userName = 'Foodiex';
+        userName = 'Calzo';
         email = 'No email';
       });
     }
@@ -282,7 +281,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (type.isEmpty) {
       return 'Free';
     } else {
-      return type.capitalize();
+      return _capitalize(type);
     }
   }
 
@@ -290,8 +289,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (type.isEmpty) {
       return 'Free';
     } else {
-      return type.capitalize();
+      return _capitalize(type);
     }
+  }
+
+  String _capitalize(String text) {
+    if (text.isEmpty) return text;
+    return text[0].toUpperCase() + text.substring(1).toLowerCase();
   }
 
   @override
@@ -530,6 +534,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _showLanguageDialog(BuildContext context) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    
     return showDialog(
       context: context,
       builder:
@@ -539,7 +546,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 ListTile(
-                  title: Text('settings.english'.tr()),
+                  title: Text(
+                    'settings.english'.tr(),
+                    style: TextStyle(color: textColor),
+                  ),
                   onTap: () async {
                     await context.setLocale(const Locale('en'));
                     Navigator.pop(context);
@@ -548,7 +558,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   },
                 ),
                 ListTile(
-                  title: Text('settings.hebrew'.tr()),
+                  title: Text(
+                    'settings.hebrew'.tr(),
+                    style: TextStyle(color: textColor),
+                  ),
                   onTap: () async {
                     await context.setLocale(const Locale('he'));
                     Navigator.pop(context);
@@ -557,7 +570,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   },
                 ),
                 ListTile(
-                  title: Text('settings.russian'.tr()),
+                  title: Text(
+                    'settings.russian'.tr(),
+                    style: TextStyle(color: textColor),
+                  ),
                   onTap: () async {
                     await context.setLocale(const Locale('ru'));
                     Navigator.pop(context);

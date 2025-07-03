@@ -4,6 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import '../../../features/providers/wizard_provider.dart';
+import '../../pages/wizard/wizard_pager.dart';
 
 class UserInfoScreen extends StatefulWidget {
   @override
@@ -168,7 +171,7 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
+              backgroundColor: Colors.black87,
               foregroundColor: Colors.white,
             ),
             child: Text('common.restart'.tr()),
@@ -185,8 +188,15 @@ class _UserInfoScreenState extends State<UserInfoScreen> {
       
       if (!mounted) return;
       
-      // Navigate to wizard
-      context.go('/wizard_pager');
+      // Navigate to wizard with a new provider
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => ChangeNotifierProvider(
+            create: (_) => WizardProvider(totalScreens: 18),
+            child: const WizardPager(),
+          ),
+        ),
+      );
     }
   }
 

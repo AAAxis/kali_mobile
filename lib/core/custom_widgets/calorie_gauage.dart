@@ -19,10 +19,10 @@ class CalorieGauge extends StatelessWidget {
     this.segments = 24,
     this.filledColor = Colors.deepOrange,
     this.unfilledColor = Colors.grey,
-    this.segmentHeight = 18.0,
-    this.topWidth = 8.0,
-    this.bottomWidth = 4.0,
-    this.cornerRadius = 4.0,
+    this.segmentHeight = 15.0,
+    this.topWidth = 7.0,
+    this.bottomWidth = 3.0,
+    this.cornerRadius = 3.0,
   });
 
   @override
@@ -32,7 +32,7 @@ class CalorieGauge extends StatelessWidget {
     return Card(
       elevation: 3,
       child: Padding(
-        padding: const EdgeInsets.all(2.0),
+        padding: const EdgeInsets.all(1.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -41,59 +41,47 @@ class CalorieGauge extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: const [
                 Icon(Icons.local_fire_department_rounded,
-                    color: Colors.redAccent, size: 20),
+                    color: Colors.redAccent),
                 SizedBox(width: 4),
                 Text("Calories",
                     style: TextStyle(
                         fontWeight: FontWeight.w600,
-                        fontSize: 14,
+                        fontSize: 16,
                         color: Colors.black87)),
                 SizedBox(width: 4),
-                Icon(Icons.edit, size: 14, color: Colors.grey),
+                Icon(Icons.edit, size: 16, color: Colors.grey),
               ],
             ),
             const SizedBox(height: 8),
             // Gauge
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final availableWidth = constraints.maxWidth;
-                final gaugeWidth = availableWidth * 0.8; // Use 80% of available width
-                final gaugeHeight = gaugeWidth / 2;
-                
-                return SizedBox(
-                  width: gaugeWidth,
-                  height: gaugeHeight + 40, // Add extra height for the text
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      CustomPaint(
-                        size: Size(gaugeWidth, gaugeHeight),
-                        painter: GaugePainter(
-                          fillPercent: fillPercent,
-                          segments: segments,
-                          filledColor: filledColor,
-                          unfilledColor: unfilledColor,
-                          segmentHeight: segmentHeight,
-                          topWidth: topWidth,
-                          bottomWidth: bottomWidth,
-                          cornerRadius: cornerRadius,
-                        ),
-                      ),
-                      Positioned(
-                        top: gaugeHeight / 2,
-                        child: Text(
-                          "${currentValue.toInt()}g",
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black87,
-                          ),
-                        ),
-                      ),
-                    ],
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                CustomPaint(
+                  size: const Size(175, 87),
+                  painter: GaugePainter(
+                    fillPercent: fillPercent,
+                    segments: segments,
+                    filledColor: filledColor,
+                    unfilledColor: unfilledColor,
+                    segmentHeight: segmentHeight,
+                    topWidth: topWidth,
+                    bottomWidth: bottomWidth,
+                    cornerRadius: cornerRadius,
                   ),
-                );
-              },
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 28),
+                  child: Text(
+                    "${currentValue.toInt()}g",
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

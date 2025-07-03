@@ -5,6 +5,9 @@ import '../../../core/constant/constants.dart';
 import '../../../core/custom_widgets/wizard_button.dart';
 import 'package:provider/provider.dart';
 import '../../providers/wizard_provider.dart';
+import 'dart:io';
+import 'apple_health.dart';
+import 'google_fit.dart';
 
 class Wizard12 extends StatefulWidget {
   const Wizard12({super.key});
@@ -19,6 +22,20 @@ class Wizard12State extends State<Wizard12>
   late Animation<double> _lineAnimation;
 
   bool isGain = true; // Set to true for weight gain, false for weight loss
+
+  void _navigateToHealthScreen(BuildContext context) {
+    if (Platform.isIOS) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const Wizard20()),
+      );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const Wizard21()),
+      );
+    }
+  }
 
   @override
   void initState() {
@@ -45,14 +62,55 @@ class Wizard12State extends State<Wizard12>
     super.dispose();
   }
 
+  Widget _buildRecommendationItem(String text, Color iconColor, IconData icon) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 12.h),
+      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12.r),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 32.w,
+            height: 32.w,
+            decoration: BoxDecoration(
+              color: iconColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8.r),
+            ),
+            child: Icon(
+              icon,
+              color: iconColor,
+              size: 18.w,
+            ),
+          ),
+          SizedBox(width: 12.w),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 16.sp,
+                color: Colors.black87,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-
-    // Set the message for weight gain or loss
-    String message = isGain
-        ? "Weight gain often takes a few days to kick in, but after the first week, you'll start seeing real progress!!"
-        : "Weight loss often takes a few days to kick in, but after the first week, you'll start seeing real progress!!";
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -80,90 +138,36 @@ class Wizard12State extends State<Wizard12>
               ),
               SizedBox(height: 40.h),
 
-              // Graph container
-              Container(
-                width: double.infinity,
-                height: 280.h,
-                padding: EdgeInsets.all(20.w),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(16.r),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "Your Goal transition",
-                      style: TextStyle(
-                        fontSize: 16.sp,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    SizedBox(height: 20.h),
-                    Expanded(
-                      child: Stack(
-                        children: [
-                          // Animated graph
-                          AnimatedBuilder(
-                            animation: _lineAnimation,
-                            builder: (context, child) {
-                              return CustomPaint(
-                                size: Size(double.infinity, double.infinity),
-                                painter: _WeightGraphPainter(
-                                  progress: _lineAnimation.value,
-                                  isGain: isGain,
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: 10.h),
-                    // Time labels
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          "3 Days",
-                          style: TextStyle(
-                            fontSize: 12.sp,
-                            color: Colors.black54,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        Text(
-                          "7 Days",
-                          style: TextStyle(
-                            fontSize: 12.sp,
-                            color: Colors.black54,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        Text(
-                          "30 Days",
-                          style: TextStyle(
-                            fontSize: 12.sp,
-                            color: Colors.black54,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+              Text(
+                "How to reach your goals:",
+                style: TextStyle(
+                  fontSize: 20.sp,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
                 ),
               ),
+              SizedBox(height: 16.h),
 
-              SizedBox(height: 30.h),
-              Text(
-                message,
-                style: TextStyle(
-                  fontSize: 14.sp,
-                  color: Colors.black87,
-                  height: 1.4,
-                ),
-                textAlign: TextAlign.center,
+              // Recommendations
+              _buildRecommendationItem(
+                "Use health scores to improve your routine",
+                Colors.green,
+                Icons.favorite,
+              ),
+              _buildRecommendationItem(
+                "Follow your daily calorie recommendations",
+                Colors.blue,
+                Icons.local_fire_department,
+              ),
+              _buildRecommendationItem(
+                "Track your food",
+                Colors.red,
+                Icons.restaurant,
+              ),
+              _buildRecommendationItem(
+                "Balance your carbs, proteins and fats.",
+                Colors.teal,
+                Icons.balance,
               ),
 
               const Spacer(),
@@ -171,14 +175,10 @@ class Wizard12State extends State<Wizard12>
               // Continue button
               WizardButton(
                 label: 'Continue',
-                onPressed: () {
-                  // Your action here
-                  Provider.of<WizardProvider>(context, listen: false)
-                      .nextPage();
-                },
-                padding: EdgeInsets.symmetric(
-                    vertical: 18.h), // Adjust padding if necessary
+                onPressed: () => _navigateToHealthScreen(context),
+                padding: EdgeInsets.symmetric(vertical: 18.h),
               ),
+              SizedBox(height: 24.h),
             ],
           ),
         ),

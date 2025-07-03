@@ -47,6 +47,12 @@ class DashboardScreenState extends State<DashboardScreen> {
     loadMealsFromFirebase();
     // Initialize nutrition database
     NutritionDatabaseService.initialize();
+    // Listen to auth state changes
+    FirebaseAuth.instance.authStateChanges().listen((User? user) {
+      if (mounted) {
+        handleAuthStateChange();
+      }
+    });
   }
 
   Future<void> _loadUserName() async {
@@ -58,13 +64,13 @@ class DashboardScreenState extends State<DashboardScreen> {
         });
       } else {
         setState(() {
-          userName = 'Foodiex';
+          userName = 'Calzo';
         });
       }
     } catch (e) {
       print('Error loading user name: $e');
       setState(() {
-        userName = 'Foodiex';
+        userName = 'Calzo';
       });
     }
   }
@@ -235,17 +241,24 @@ class DashboardScreenState extends State<DashboardScreen> {
         children: [
           GestureDetector(
             onTap: () async {
+              print('🔍 Profile icon tapped');
               final user = FirebaseAuth.instance.currentUser;
+              print('🔍 Current user: ${user?.uid ?? 'null'}');
               if (user != null) {
+                print('🔍 User authenticated, going to settings');
                 await Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => SettingsScreen()),
                 );
                 // Refresh dashboard when returning from settings (in case language changed)
                 await refreshDashboard();
-              } else {
-                context.go('/login');
-              }
+                                } else {
+                    print('🔍 User not authenticated, going to login');
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const LoginScreen()),
+                    );
+                  }
             },
             child: StreamBuilder<DocumentSnapshot>(
               stream: FirebaseAuth.instance.currentUser != null
@@ -301,35 +314,52 @@ class DashboardScreenState extends State<DashboardScreen> {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  userName,
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
+            child: GestureDetector(
+              onTap: () async {
+                print('🔍 Username text tapped');
+                final user = FirebaseAuth.instance.currentUser;
+                print('🔍 Current user: ${user?.uid ?? 'null'}');
+                if (user != null) {
+                  print('🔍 User authenticated, going to settings');
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => SettingsScreen()),
+                  );
+                  // Refresh dashboard when returning from settings (in case language changed)
+                  await refreshDashboard();
+                } else {
+                  print('🔍 User not authenticated, going to login');
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const LoginScreen()),
+                  );
+                }
+              },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    userName,
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           const SizedBox(width: 12),
           IconButton(
             icon: const Icon(Icons.notifications_outlined, color: Colors.black, size: 28),
             onPressed: () {
-              final user = FirebaseAuth.instance.currentUser;
-              if (user != null) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const NotificationsScreen()),
-                );
-              } else {
-                context.go('/login');
-              }
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const NotificationsScreen()),
+              );
             },
           ),
         ],
