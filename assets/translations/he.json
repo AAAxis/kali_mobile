@@ -124,8 +124,12 @@
     "goal_maintain_weight": "לשמור על המשקל",
     "goal_improve_flexibility": "שיפור גמישות",
     "range": "טווח",
-    "not_set": "לא מוגדר",
-    "kcal": "קלוריות"
+    "not_set": "לא הוגדר",
+    "kcal": "קלוריות",
+    "restart_wizard": "הפעל מחדש את ההגדרות",
+    "restart_wizard_confirm": "האם אתה בטוח שברצונך להפעיל מחדש את תהליך ההגדרה? ההגדרות הנוכחיות שלך יאופסו.",
+    "restart": "הפעל מחדש",
+    "restart_wizard_description": "התחל את תהליך ההגדרה מחדש כדי לעדכן את היעדים וההעדפות שלך"
   },
   "notifications": {
     "notifications": "התראות",

@@ -129,49 +129,17 @@ class _Wizard14State extends State<Wizard14> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                                     // Create Account Button
-                   WizardButton(
-                     label: 'Create Account',
-                     onPressed: () async {
-                       // Mark wizard as completed
-                       await SharedPref.setWizardCompleted(true);
-                       context.goToLogin();
-                     },
-                     padding: EdgeInsets.symmetric(vertical: 18.h),
-                   ),
-                  
-                  SizedBox(height: 12.h),
-                  
-                  // Skip for now Button (smaller, secondary style)
-                  SizedBox(
-                    width: double.infinity,
-                    child: TextButton(
-                                             onPressed: () async {
-                         // Mark wizard as completed but skip auth
-                         await SharedPref.setWizardCompleted(true);
-                         // Navigate to dashboard
-                         Navigator.of(context).pushReplacement(
-                           MaterialPageRoute(
-                             builder: (context) => const DashboardScreen(),
-                           ),
-                         );
-                       },
-                      style: TextButton.styleFrom(
-                        padding: EdgeInsets.symmetric(vertical: 16.h),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20.r),
-                        ),
-                      ),
-                      child: Text(
-                        'Skip for now',
-                        style: AppTextStyles.bodyMedium.copyWith(
-                          color: colorScheme.onSurface.withValues(alpha: 0.7),
-                          fontSize: 16.sp,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
+                  // Create Account Button
+                  WizardButton(
+                    label: 'Create Account',
+                    onPressed: () async {
+                      // Mark wizard as completed
+                      await SharedPref.setWizardCompleted(true);
+                      context.goToLogin();
+                    },
+                    padding: EdgeInsets.symmetric(vertical: 18.h),
                   ),
+                  SizedBox(height: 24.h),
                 ],
               ),
             ),

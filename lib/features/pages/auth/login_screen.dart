@@ -3,14 +3,15 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:go_router/go_router.dart';
 import 'dart:io';
 import '../../../core/constant/app_icons.dart';
 import '../../../core/custom_widgets/social_button.dart';
 import '../../../core/extension/navigation_extention.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/store/shared_pref.dart';
-import 'package:go_router/go_router.dart';
 import 'login_with_email_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -49,6 +50,30 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       final userCredential = await _auth.signInWithCredential(oauthCredential);
+      
+      // Update user profile if we have a name from Apple
+      if (credential.givenName != null || credential.familyName != null) {
+        final displayName = [credential.givenName, credential.familyName]
+            .where((name) => name != null)
+            .join(' ');
+            
+        if (displayName.isNotEmpty) {
+          await userCredential.user?.updateDisplayName(displayName);
+          
+          // Also update Firestore
+          if (userCredential.user != null) {
+            await FirebaseFirestore.instance
+                .collection('users')
+                .doc(userCredential.user!.uid)
+                .set({
+              'displayName': displayName,
+              'email': credential.email,
+              'lastLoginAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+          }
+        }
+      }
+
       await _handleLoginSuccess(userCredential);
     } catch (e) {
       print('Error during Apple sign in: $e');
@@ -153,7 +178,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 children: [
                   IconButton(
                     onPressed: () {
-                      Navigator.of(context).pop();
+                      context.go('/dashboard');
                     },
                     icon: Icon(
                       Icons.close,
@@ -232,7 +257,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    "Don’t Have an Account? ",
+                    "Don't Have an Account? ",
                     style: AppTextStyles.bodyMedium
                         .copyWith(color: colorScheme.onSurfaceVariant),
                   ),

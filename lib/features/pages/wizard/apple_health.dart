@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/constant/app_images.dart';
 import '../../../core/custom_widgets/health_status_card.dart';
 import '../../../core/custom_widgets/wizard_button.dart';
 import '../../../core/services/health_service.dart';
+import '../../providers/wizard_provider.dart';
 
 class Wizard20 extends StatefulWidget {
   const Wizard20({super.key});
@@ -166,9 +168,11 @@ class _Wizard20State extends State<Wizard20> {
               const Spacer(),
               WizardButton(
                 label: _isConnecting ? 'Connecting...' : 'Done',
-                onPressed: _isConnecting ? () {} : () {
-                  context.pop();
-                },
+                onPressed: _isConnecting 
+                  ? () {} // Provide empty function when connecting
+                  : () {
+                      Provider.of<WizardProvider>(context, listen: false).nextPage();
+                    },
               ),
               SizedBox(height: 34.h),
             ],

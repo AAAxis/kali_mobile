@@ -244,10 +244,7 @@ class DashboardScreenState extends State<DashboardScreen> {
                 // Refresh dashboard when returning from settings (in case language changed)
                 await refreshDashboard();
               } else {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => const LoginScreen()),
-                );
+                context.go('/login');
               }
             },
             child: StreamBuilder<DocumentSnapshot>(
@@ -331,10 +328,7 @@ class DashboardScreenState extends State<DashboardScreen> {
                   MaterialPageRoute(builder: (context) => const NotificationsScreen()),
                 );
               } else {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => const LoginScreen()),
-                );
+                context.go('/login');
               }
             },
           ),

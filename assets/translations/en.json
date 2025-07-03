@@ -124,7 +124,11 @@
     "goal_improve_flexibility": "Improve Flexibility",
     "range": "Range",
     "not_set": "Not set",
-    "kcal": "kcal"
+    "kcal": "kcal",
+    "restart_wizard": "Restart Setup",
+    "restart_wizard_confirm": "Are you sure you want to restart the setup process? Your current settings will be reset.",
+    "restart": "Restart",
+    "restart_wizard_description": "Start the setup process again to update your goals and preferences"
   },
   "error": {
     "saving_language": "Error saving language"

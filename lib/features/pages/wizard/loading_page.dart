@@ -89,7 +89,7 @@ class _LoadingPageState extends State<LoadingPage> {
                             colors: [
                               Color(0xFF00E3FF), // cyan
                               Color(0xFF3870FF), // blue
-                              Color(0xFF8300E9), // purple
+                              Color(0xFF00B4D8), // light blue
                             ],
                           ),
                         ),

@@ -14,154 +14,155 @@ class Wizard2 extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = Provider.of<WizardProvider>(context);
     final colorScheme = Theme.of(context).colorScheme;
+    final isMetric = provider.isMetric;
 
-    final isCm = provider.isCm;
-    final height = provider.height;
+    const minCm = 140;
+    const maxCm = 220;
+    const minInch = 48;
+    const maxInch = 84;
 
-    final minCm = 140;
-    final maxCm = 210;
-    final minInch = 55;
-    final maxInch = 83;
+    final min = isMetric ? minCm : minInch;
+    final max = isMetric ? maxCm : maxInch;
 
-    final min = isCm ? minCm : minInch;
-    final max = isCm ? maxCm : maxInch;
-    final count = max - min + 1;
-    final initialIndex = height - min;
-
-    final controller = FixedExtentScrollController(initialItem: initialIndex);
-
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 24.w),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            SizedBox(height: Constants.beforeIcon),
-            Image.asset(AppIcons.kali, color: colorScheme.primary),
-            SizedBox(height: Constants.afterIcon),
-            Text(
-              "What's your current\nheight right now?",
-              style: AppTextStyles.headingMedium.copyWith(
-                fontWeight: FontWeight.bold,
-                color: colorScheme.onSurface,
+    return Scaffold(
+      backgroundColor: colorScheme.surface,
+      body: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 24.w),
+          child: Column(
+            children: [
+              SizedBox(height: 38.h),
+              // App Title
+              Image.asset(
+                AppIcons.kali,
+                color: colorScheme.primary,
               ),
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: 22.h),
-
-            /// Toggle
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _UnitToggleButton(
-                  label: "Inches",
-                  isActive: !isCm,
-                  onTap: () => provider.toggleHeightUnit(false),
+              SizedBox(height: 20.h),
+              Text(
+                "What's your current height right now?",
+                style: AppTextStyles.headingMedium.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
                 ),
-                SizedBox(width: 18.w),
-                _UnitToggleButton(
-                  label: "Cm",
-                  isActive: isCm,
-                  onTap: () => provider.toggleHeightUnit(true),
-                ),
-              ],
-            ),
-            SizedBox(height: 18.h),
-
-            /// Picker
-            SizedBox(
-              height: 400.h,
-              child: Stack(
-                alignment: Alignment.center,
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 20.h),
+              
+              // Unit Toggle
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  ListWheelScrollView.useDelegate(
-                    itemExtent: 50.h,
-                    diameterRatio: 1.2,
+                  _UnitToggleButton(
+                    label: 'Inches',
+                    isActive: !isMetric,
+                    onTap: () => provider.toggleMetric(false),
+                  ),
+                  SizedBox(width: 16.w),
+                  _UnitToggleButton(
+                    label: 'Cm',
+                    isActive: isMetric,
+                    onTap: () => provider.toggleMetric(true),
+                  ),
+                ],
+              ),
+              
+              SizedBox(height: 20.h),
+              
+              // Height Display
+              Text(
+                '${provider.height}${isMetric ? "cm" : "in"}',
+                style: AppTextStyles.headingLarge.copyWith(
+                  color: colorScheme.onSurface,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 40.sp,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 30.h),
+              
+              // Height Ruler
+              SizedBox(
+                height: 100.h,
+                child: RotatedBox(
+                  quarterTurns: -1,
+                  child: ListWheelScrollView.useDelegate(
+                    controller: provider.scrollController,
+                    itemExtent: 20.w,
                     physics: const FixedExtentScrollPhysics(),
-                    controller: controller,
-                    onSelectedItemChanged: (i) {
-                      final selectedHeight = min + i;
-                      provider.setHeight(selectedHeight);
+                    onSelectedItemChanged: (index) {
+                      final value = min + index;
+                      provider.setHeight(value);
                     },
                     childDelegate: ListWheelChildBuilderDelegate(
-                      childCount: count,
-                      builder: (context, i) {
-                        final value = min + i;
-                        final isSelected = value == height;
-                        return Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            if (isSelected)
-                              Icon(Icons.play_arrow_rounded,
-                                  color: colorScheme.primary, size: 28.sp),
-                            SizedBox(width: isSelected ? 4.w : 32.w),
-                            Text(
-                              '$value',
-                              style: AppTextStyles.headingLarge.copyWith(
-                                fontWeight: isSelected
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                                color: isSelected
-                                    ? colorScheme.onSurface
-                                    : colorScheme.onSurface
-                                        .withValues(alpha: 90),
-                                fontSize: isSelected ? 32.sp : 22.sp,
-                              ),
-                            ),
-                            if (isSelected)
-                              Padding(
-                                padding: EdgeInsets.only(left: 4.w),
-                                child: Text(
-                                  isCm ? "cm" : "in",
-                                  style: AppTextStyles.headingMedium.copyWith(
-                                    color: colorScheme.onSurface,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                      childCount: max - min + 1,
+                      builder: (context, idx) {
+                        final value = min + idx;
+                        final isSelected = value == provider.height;
+                        final isWholeUnit = value % 5 == 0;
+
+                        double height;
+                        if (isSelected) {
+                          height = 55.h;
+                        } else if (isWholeUnit) {
+                          height = 40.h;
+                        } else {
+                          height = 25.h;
+                        }
+
+                        return RotatedBox(
+                          quarterTurns: 1,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                width: isSelected ? 3.5.w : 2.w,
+                                height: height,
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? colorScheme.onSurface
+                                      : colorScheme.onSurface.withOpacity(0.4),
+                                  borderRadius: BorderRadius.circular(4),
                                 ),
                               ),
-                          ],
+                              if (isWholeUnit)
+                                Padding(
+                                  padding: EdgeInsets.only(top: 4.h),
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(
+                                      value.toString(),
+                                      style: AppTextStyles.bodyLarge.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                        color: colorScheme.onSurface,
+                                        fontSize: 16.sp,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                         );
                       },
                     ),
                   ),
-
-                  /// Underlines
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    child: Column(
-                      children: [
-                        Container(
-                          margin: EdgeInsets.only(top: 24.h),
-                          height: 2,
-                          width: 150.w,
-                          color: colorScheme.onSurface.withValues(alpha: 50),
-                        ),
-                        SizedBox(height: 41.h),
-                        Container(
-                          margin: EdgeInsets.only(bottom: 24.h),
-                          height: 2,
-                          width: 150.w,
-                          color: colorScheme.onSurface.withValues(alpha: 50),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
-            const Spacer(),
-
-            /// Continue
-            WizardButton(
-              label: 'Continue',
-              onPressed: () {
-                Provider.of<WizardProvider>(context, listen: false).nextPage();
-              },
-              padding: EdgeInsets.symmetric(vertical: 18.h),
-            ),
-            SizedBox(height: 24.h),
-          ],
+              
+              const Spacer(),
+              
+              // Continue Button
+              Padding(
+                padding: EdgeInsets.only(bottom: 24.h),
+                child: WizardButton(
+                  label: 'Continue',
+                  onPressed: () {
+                    Provider.of<WizardProvider>(context, listen: false).nextPage();
+                  },
+                  padding: EdgeInsets.symmetric(vertical: 18.h),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

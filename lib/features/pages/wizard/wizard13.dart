@@ -8,6 +8,8 @@ import '../../../core/theme/app_text_styles.dart';
 import 'package:provider/provider.dart';
 import '../../providers/wizard_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class Wizard13 extends StatefulWidget {
   const Wizard13({super.key});
@@ -96,7 +98,7 @@ class _Wizard13State extends State<Wizard13> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-
+    
     return Scaffold(
       backgroundColor: colorScheme.surface,
       body: SafeArea(
@@ -105,197 +107,186 @@ class _Wizard13State extends State<Wizard13> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              SizedBox(height: Constants.beforeIcon),
+              SizedBox(height: 38.h),
+              // App Title
               Image.asset(
                 AppIcons.kali,
                 color: colorScheme.primary,
               ),
-              SizedBox(height: Constants.afterIcon),
-
-              // Image display with rounded corners
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16.r),
-                child: Image.asset(
-                  AppImages.notif,
-                  width: double.infinity,
-                  height: 240.h,
-                  fit: BoxFit.cover,
-                ),
-              ),
-
               SizedBox(height: 20.h),
-
-              // Main heading
-              Text(
-                "Reach your goals faster with\nnotifications",
-                style: AppTextStyles.headingMedium.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.onSurface,
-                  fontSize: 24.sp,
-                  height: 1.2,
-                ),
-                textAlign: TextAlign.center,
-              ),
-
-              SizedBox(height: 20.h),
-
-              // Notification permission dialog
+              
+              // Image
               Container(
-                width: double.infinity,
-                padding: EdgeInsets.all(20.w),
                 decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHighest
-                      .withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(12.r),
-                  border: Border.all(
-                    color: colorScheme.outline.withValues(alpha: 0.2),
-                    width: 1,
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        if (_notificationStatus == PermissionStatus.granted) ...[
-                          Icon(
-                            Icons.check_circle,
-                            color: Colors.green,
-                            size: 20.sp,
-                          ),
-                          SizedBox(width: 8.w),
-                        ],
-                        Expanded(
-                          child: Text(
-                            _notificationStatus == PermissionStatus.granted
-                                ? "Notifications are enabled"
-                                : "Kali Ai would like to send you\nNotifications",
-                            style: AppTextStyles.bodyLarge.copyWith(
-                              color: colorScheme.onSurface,
-                              fontSize: 16.sp,
-                              height: 1.3,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    SizedBox(height: 20.h),
-
-                    // Allow/Deny Buttons
-                    Row(
-                      children: [
-                        // Don't Allow button
-                        Expanded(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: colorScheme.surface,
-                              borderRadius: BorderRadius.circular(8.r),
-                              border: Border.all(
-                                color:
-                                    colorScheme.outline.withValues(alpha: 0.3),
-                                width: 1,
-                              ),
-                            ),
-                            child: TextButton(
-                              onPressed: _isRequesting ? null : () {
-                                // Skip notification permission
-                                _showInfo('You can enable notifications later in your device settings.');
-                                Provider.of<WizardProvider>(context,
-                                        listen: false)
-                                    .nextPage();
-                              },
-                              style: TextButton.styleFrom(
-                                padding: EdgeInsets.symmetric(vertical: 12.h),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8.r),
-                                ),
-                              ),
-                              child: Text(
-                                "Don't Allow",
-                                style: AppTextStyles.bodyMedium.copyWith(
-                                  color: _isRequesting 
-                                      ? colorScheme.onSurface.withValues(alpha: 0.5)
-                                      : colorScheme.onSurface,
-                                  fontWeight: FontWeight.w500,
-                                  fontSize: 14.sp,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-
-                        SizedBox(width: 12.w),
-
-                        // Allow button
-                        Expanded(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: colorScheme.onSurface,
-                              borderRadius: BorderRadius.circular(8.r),
-                            ),
-                            child: TextButton(
-                              onPressed: _isRequesting ? null : () async {
-                                // Request notification permission
-                                await _requestNotificationPermission();
-                              },
-                              style: TextButton.styleFrom(
-                                padding: EdgeInsets.symmetric(vertical: 12.h),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8.r),
-                                ),
-                              ),
-                              child: _isRequesting
-                                  ? SizedBox(
-                                      width: 16.w,
-                                      height: 16.h,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        valueColor: AlwaysStoppedAnimation<Color>(
-                                          colorScheme.surface,
-                                        ),
-                                      ),
-                                    )
-                                  : Text(
-                                      "Allow",
-                                      style: AppTextStyles.bodyMedium.copyWith(
-                                        color: colorScheme.surface,
-                                        fontWeight: FontWeight.w500,
-                                        fontSize: 14.sp,
-                                      ),
-                                    ),
-                            ),
-                          ),
-                        ),
-                      ],
+                  borderRadius: BorderRadius.circular(20.r),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20.r),
+                  child: Image.asset(
+                    AppImages.notif,
+                    width: double.infinity,
+                    height: 200.h,
+                    fit: BoxFit.cover,
+                  ),
+                ),
               ),
-
-              const Spacer(),
-
-              // Additional text
+              SizedBox(height: 24.h),
+              
               Text(
-                "You can turn off Notifications anytime from your settings",
-                style: AppTextStyles.bodyMedium.copyWith(
-                  color: colorScheme.onSurface.withValues(alpha: 0.7),
-                  fontSize: 12.sp,
+                'Reach your goals faster\nwith notifications',
+                style: AppTextStyles.headingMedium.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
                 ),
                 textAlign: TextAlign.center,
               ),
+              SizedBox(height: 12.h),
+              
+              Text(
+                'Kali Ai would like to send you\nNotifications',
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: colorScheme.onSurface.withOpacity(0.7),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 32.h),
+              
+              // Permission Buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: _isRequesting ? null : () async {
+                        // Skip notifications but save preference
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setBool('notifications_enabled', false);
+                        if (!mounted) return;
+                        Provider.of<WizardProvider>(context, listen: false).nextPage();
+                      },
+                      style: TextButton.styleFrom(
+                        backgroundColor: colorScheme.surface,
+                        padding: EdgeInsets.symmetric(vertical: 16.h),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12.r),
+                          side: BorderSide(
+                            color: colorScheme.outline.withOpacity(0.2),
+                          ),
+                        ),
+                      ),
+                      child: Text(
+                        "Don't Allow",
+                        style: TextStyle(
+                          color: colorScheme.onSurface,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 16.w),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _isRequesting ? null : () async {
+                        setState(() => _isRequesting = true);
+                        try {
+                          // Request notification permissions
+                          final flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+                          bool granted = true;
 
-              SizedBox(height: 10.h),
+                          // Android permissions
+                          final androidPlugin = flutterLocalNotificationsPlugin
+                              .resolvePlatformSpecificImplementation<
+                                AndroidFlutterLocalNotificationsPlugin
+                              >();
+                          if (androidPlugin != null) {
+                            final result = await androidPlugin.requestNotificationsPermission();
+                            if (result != null && result == false) granted = false;
+                          }
 
+                          // iOS permissions
+                          final iosPlugin = flutterLocalNotificationsPlugin
+                              .resolvePlatformSpecificImplementation<
+                                IOSFlutterLocalNotificationsPlugin
+                              >();
+                          if (iosPlugin != null) {
+                            final result = await iosPlugin.requestPermissions(
+                              alert: true,
+                              badge: true,
+                              sound: true,
+                            );
+                            if (result != null && result == false) granted = false;
+                          }
+
+                          // Save preference
+                          final prefs = await SharedPreferences.getInstance();
+                          await prefs.setBool('notifications_enabled', granted);
+
+                          if (!mounted) return;
+                          Provider.of<WizardProvider>(context, listen: false).nextPage();
+                        } catch (e) {
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Failed to enable notifications',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        } finally {
+                          if (mounted) {
+                            setState(() => _isRequesting = false);
+                          }
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: colorScheme.primary,
+                        foregroundColor: colorScheme.onPrimary,
+                        padding: EdgeInsets.symmetric(vertical: 16.h),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12.r),
+                        ),
+                      ),
+                      child: Text(
+                        'Allow',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              
+              SizedBox(height: 16.h),
+              Text(
+                'You can turn off Notifications anytime from your settings',
+                style: TextStyle(
+                  fontSize: 12.sp,
+                  color: colorScheme.onSurface.withOpacity(0.5),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              
+              const Spacer(),
+              
               // Continue Button
-              WizardButton(
-                label: 'Continue',
-                onPressed: () {
-                  Provider.of<WizardProvider>(context, listen: false)
-                      .nextPage();
-                },
-                padding: EdgeInsets.symmetric(vertical: 18.h),
+              Padding(
+                padding: EdgeInsets.only(bottom: 24.h),
+                child: WizardButton(
+                  label: 'Continue',
+                  onPressed: () {
+                    Provider.of<WizardProvider>(context, listen: false).nextPage();
+                  },
+                  padding: EdgeInsets.symmetric(vertical: 18.h),
+                ),
               ),
             ],
           ),

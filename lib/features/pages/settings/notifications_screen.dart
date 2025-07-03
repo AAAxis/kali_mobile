@@ -25,7 +25,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   void initState() {
     super.initState();
     _loadNotificationPreferences();
-    _requestNotificationPermissions();
     _scheduleDailyNotification();
   }
 
@@ -41,53 +40,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Future<void> _saveNotificationPreference(String key, bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(key, value);
-  }
-
-  Future<void> _requestNotificationPermissions() async {
-    bool granted = true;
-    // Android
-    final androidPlugin =
-        flutterLocalNotificationsPlugin
-            .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin
-            >();
-    if (androidPlugin != null) {
-      final result = await androidPlugin.requestNotificationsPermission();
-      if (result != null && result == false) granted = false;
-    }
-    // iOS
-    final iosPlugin =
-        flutterLocalNotificationsPlugin
-            .resolvePlatformSpecificImplementation<
-              IOSFlutterLocalNotificationsPlugin
-            >();
-    if (iosPlugin != null) {
-      final result = await iosPlugin.requestPermissions(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
-      if (result != null && result == false) granted = false;
-    }
-    if (!granted && mounted) {
-      setState(() {});
-      showDialog(
-        context: context,
-        builder:
-            (context) => AlertDialog(
-              title: Text('notifications.disabled_title'.tr()),
-              content: Text(
-                'notifications.enable_prompt'.tr(),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text('common.ok'.tr()),
-                ),
-              ],
-            ),
-      );
-    }
   }
 
   List<Map<String, String>> getNotifications() {

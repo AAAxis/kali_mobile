@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/constant/app_icons.dart';
 import '../../../core/custom_widgets/custom_text_field.dart';
 import '../../../core/custom_widgets/wide_elevated_button.dart';
 import '../../../core/extension/navigation_extention.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/store/shared_pref.dart';
-import 'package:go_router/go_router.dart';
 import 'forgot_password_screen.dart';
 
 class LoginWithEmailScreen extends StatefulWidget {
@@ -151,7 +151,7 @@ class _LoginWithEmailScreenState extends State<LoginWithEmailScreen> {
                     children: [
                       IconButton(
                         onPressed: () {
-                          Navigator.of(context).pop();
+                          context.go('/dashboard');
                         },
                         icon: Icon(
                           Icons.close,

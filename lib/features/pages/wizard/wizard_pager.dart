@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'dart:io';
 import './loading_page.dart';
 import './wizard18.dart';
-import './wizard19.dart';
+import './apple_health.dart';
+import './google_fit.dart';
 import '../../providers/wizard_provider.dart';
 import 'package:provider/provider.dart';
 
@@ -25,36 +27,49 @@ import 'wizard15.dart';
 class WizardPager extends StatelessWidget {
   const WizardPager({super.key});
 
-  final List<Widget> screens = const [
-    Wizard15(),
-    Wizard4(),
-    Wizard3(),
-    Wizard2(),
-    Wizard1(),
-    Wizard5(),
-    Wizard6(),
-    Wizard7(),
-    Wizard8(isGain: true, kgs: 17),
-    Wizard9(),
-    Wizard10(),
-    LoadingPage(),
-    Wizard11(), //have to work on this, guage is left in here
-    Wizard18(),
-    //
-    Wizard12(),
-    Wizard19(),
-    Wizard13(),
-    Wizard14(),
-  ];
+  List<Widget> _getScreens() {
+    return [
+      const Wizard15(),
+      const Wizard4(),
+      const Wizard3(),
+      const Wizard2(),
+      const Wizard1(),
+      const Wizard5(),
+      const Wizard6(),
+      const Wizard7(),
+      const Wizard8(isGain: true, kgs: 17),
+      const Wizard9(),
+      const Wizard10(),
+      const LoadingPage(),
+      const Wizard11(), //have to work on this, guage is left in here
+      const Wizard18(),
+      const Wizard12(),
+      // Use platform-specific health screens
+      if (Platform.isIOS) const Wizard20() else const Wizard21(),
+      const Wizard13(),
+      const Wizard14(),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
-    final wizard = Provider.of<WizardProvider>(context);
+    final provider = Provider.of<WizardProvider>(context);
     final colorScheme = Theme.of(context).colorScheme;
+    
     // Index of LoadingPage
     const loadingIndex = 11; // adjust based on actual position
-
-    final showIndicators = wizard.currentIndex != loadingIndex;
+    final showIndicators = provider.currentIndex != loadingIndex;
+    
+    // Calculate visible dots range (show 5 dots at a time)
+    final currentIndex = provider.currentIndex;
+    final totalPages = _getScreens().length;
+    final visibleDots = 5;
+    
+    int startDot = currentIndex - (visibleDots ~/ 2);
+    startDot = startDot.clamp(0, totalPages - visibleDots);
+    int endDot = startDot + visibleDots;
+    endDot = endDot.clamp(visibleDots, totalPages);
+    startDot = endDot - visibleDots;
 
     return Scaffold(
       backgroundColor: colorScheme.surface,
@@ -62,31 +77,59 @@ class WizardPager extends StatelessWidget {
         children: [
           Expanded(
             child: PageView(
-              controller: wizard.pageController,
-              physics: const BouncingScrollPhysics(),
-              onPageChanged: wizard.onPageChanged,
-              children: screens,
+              controller: provider.pageController,
+              physics: const NeverScrollableScrollPhysics(),
+              onPageChanged: provider.onPageChanged,
+              children: _getScreens(),
             ),
           ),
           if (showIndicators) ...[
             SizedBox(height: 24.h),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(screens.length, (idx) {
-                final isActive = wizard.currentIndex == idx;
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  margin: EdgeInsets.symmetric(horizontal: 4.w),
-                  width: isActive ? 14.w : 9.w,
-                  height: 9.w,
-                  decoration: BoxDecoration(
-                    color: isActive
-                        ? colorScheme.primary
-                        : colorScheme.onSurface.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(6),
+              children: [
+                // Show left ellipsis if needed
+                if (startDot > 0)
+                  Container(
+                    margin: EdgeInsets.symmetric(horizontal: 4.w),
+                    width: 8.w,
+                    height: 8.w,
+                    decoration: BoxDecoration(
+                      color: colorScheme.onSurface.withOpacity(0.18),
+                      shape: BoxShape.circle,
+                    ),
                   ),
-                );
-              }),
+                
+                // Show visible dots
+                ...List.generate(endDot - startDot, (index) {
+                  final dotIndex = startDot + index;
+                  final isActive = provider.currentIndex == dotIndex;
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    margin: EdgeInsets.symmetric(horizontal: 4.w),
+                    width: isActive ? 14.w : 8.w,
+                    height: 8.w,
+                    decoration: BoxDecoration(
+                      color: isActive
+                          ? colorScheme.primary
+                          : colorScheme.onSurface.withOpacity(0.18),
+                      borderRadius: BorderRadius.circular(4.r),
+                    ),
+                  );
+                }),
+                
+                // Show right ellipsis if needed
+                if (endDot < totalPages)
+                  Container(
+                    margin: EdgeInsets.symmetric(horizontal: 4.w),
+                    width: 8.w,
+                    height: 8.w,
+                    decoration: BoxDecoration(
+                      color: colorScheme.onSurface.withOpacity(0.18),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+              ],
             ),
             SizedBox(height: 28.h),
           ],

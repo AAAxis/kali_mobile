@@ -18,6 +18,7 @@ import '../wizard/wizard1.dart';  // Import first wizard step directly
 import 'user_info.dart';
 import 'notifications_screen.dart';
 import 'goals_edit.dart';
+import 'package:go_router/go_router.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -242,34 +243,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   // Logout and clear user data
-  void logout() async {
+  Future<void> logout() async {
     try {
-      // Clear all SharedPreferences
+      print('ℹ️ Log out called for user');
+      
+      // Clear all SharedPreferences first
       SharedPreferences prefs = await SharedPreferences.getInstance();
       await prefs.clear();
       
       // Reset welcome screen flag
       await prefs.setBool('has_seen_welcome', false);
       
-      // Logout from RevenueCat
+      // Logout from RevenueCat if available
       await PaywallService.logoutUser();
       
       // Sign out from Firebase
       await _auth.signOut();
+
+      if (!mounted) return;
+
+      // Navigate to login screen using go_router
+      context.go('/login');
       
-      if (mounted) {
-        // Navigate to Wizard1 and remove all previous routes
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const Wizard1()),
-          (Route<dynamic> route) => false,
-        );
-      }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error during logout: $e')),
-        );
-      }
+      print('❌ Error during logout: $e');
+      if (!mounted) return;
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error during logout: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -306,6 +311,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         title: Text(
           'settings.title'.tr(),
           style: TextStyle(color: textColor),
+        ),
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: iconColor),
+          onPressed: () => Navigator.of(context).pop(),
         ),
         iconTheme: IconThemeData(color: iconColor),
         centerTitle: false,

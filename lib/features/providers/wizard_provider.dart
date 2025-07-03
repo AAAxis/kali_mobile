@@ -6,7 +6,7 @@ class WizardProvider extends ChangeNotifier {
   int currentIndex = 0;
   final int totalScreens;
   int _height = 175;
-  bool _isCm = true;
+  bool _isMetric = true;
   int _age = 19;
   int? _selectedGoal;
   int? _selectedDiet;
@@ -20,7 +20,7 @@ class WizardProvider extends ChangeNotifier {
   FixedExtentScrollController? _scrollController;
 
   int get height => _height;
-  bool get isCm => _isCm;
+  bool get isMetric => _isMetric;
   int get age => _age;
   int? get selectedGoal => _selectedGoal;
   int? get selectedDiet => _selectedDiet;
@@ -89,9 +89,9 @@ class WizardProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void toggleHeightUnit(bool toCm) {
-    _isCm = toCm;
-    _height = toCm ? 175 : 69;
+  void toggleMetric(bool toMetric) {
+    _isMetric = toMetric;
+    _height = toMetric ? 175 : 69;
     notifyListeners();
   }
 
