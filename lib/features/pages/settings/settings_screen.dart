@@ -243,23 +243,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // Logout and clear user data
   void logout() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
-    // Reset welcome screen flag
-    await prefs.setBool('has_seen_welcome', false);
-    
-    // Logout from RevenueCat
-    await PaywallService.logoutUser();
-    
-    await _auth.signOut();
-    
-    // Clear dashboard meals when logging out
-    await _handleAuthStateChange();
-    
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const Wizard1()),
-    );
+    try {
+      // Clear all SharedPreferences
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+      
+      // Reset welcome screen flag
+      await prefs.setBool('has_seen_welcome', false);
+      
+      // Logout from RevenueCat
+      await PaywallService.logoutUser();
+      
+      // Sign out from Firebase
+      await _auth.signOut();
+      
+      if (mounted) {
+        // Navigate to Wizard1 and remove all previous routes
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const Wizard1()),
+          (Route<dynamic> route) => false,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error during logout: $e')),
+        );
+      }
+    }
   }
 
   String _getSubscriptionTypeDisplay(String type) {
